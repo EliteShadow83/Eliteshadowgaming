@@ -9,7 +9,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - Per-guild settings storage
 - Web dashboard with Discord login
 - Embed creator in dashboard (build + send rich embeds)
-- Ticketing system (support role ping/access, claim tickets, and configurable opener-close permissions)
+- Ticketing system (support role ping/access, claim tickets, opener-close toggle, and transcript threads in transcript channel)
 - OAuth2 invite link to add the bot to any server you manage
 
 ## Quick start

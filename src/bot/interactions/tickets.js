@@ -83,10 +83,75 @@ export async function handleTicketButton(interaction) {
       return;
     }
 
-    closeTicketRecord(interaction.channelId, interaction.user.id);
     await interaction.reply('Closing ticket in 3 seconds...');
+
+    if (settings.transcript_log_channel_id) {
+      await createTranscriptThread({ interaction, ticket, settings }).catch(() => null);
+    }
+
+    closeTicketRecord(interaction.channelId, interaction.user.id);
     setTimeout(() => {
       interaction.channel.delete('Ticket closed').catch(() => null);
     }, 3000);
   }
+}
+
+async function createTranscriptThread({ interaction, ticket, settings }) {
+  const logChannel = await interaction.guild.channels.fetch(settings.transcript_log_channel_id).catch(() => null);
+  if (!logChannel || !logChannel.isTextBased() || !('threads' in logChannel)) return;
+
+  const messages = await collectMessages(interaction.channel);
+  const lines = messages
+    .reverse()
+    .map((msg) => `[${msg.createdAt.toISOString()}] ${msg.author?.tag || msg.author?.id}: ${msg.cleanContent || '[attachment/empty]'}`);
+
+  const thread = await logChannel.threads.create({
+    name: `transcript-${interaction.channel.name}-${Date.now().toString().slice(-5)}`,
+    autoArchiveDuration: 10080,
+    reason: `Transcript for closed ticket ${ticket.id}`
+  });
+
+  await thread.send(`Ticket transcript for <#${interaction.channelId}>\nOwner: <@${ticket.owner_user_id}>\nClosed by: <@${interaction.user.id}>`);
+
+  if (!lines.length) {
+    await thread.send('No messages were captured in this ticket.');
+    return;
+  }
+
+  const chunks = chunkTranscript(lines.join('\n'), 1800);
+  for (const chunk of chunks) {
+    await thread.send(`\`\`\`txt\n${chunk}\n\`\`\``);
+  }
+}
+
+async function collectMessages(channel) {
+  const all = [];
+  let before;
+
+  while (all.length < 500) {
+    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
+    if (!batch || batch.size === 0) break;
+    const values = [...batch.values()];
+    all.push(...values);
+    before = values[values.length - 1].id;
+  }
+
+  return all;
+}
+
+function chunkTranscript(text, maxLength) {
+  const lines = text.split('\n');
+  const chunks = [];
+  let current = '';
+
+  for (const line of lines) {
+    if ((current + line + '\n').length > maxLength) {
+      chunks.push(current.trimEnd());
+      current = '';
+    }
+    current += `${line}\n`;
+  }
+
+  if (current.trim()) chunks.push(current.trimEnd());
+  return chunks;
 }
