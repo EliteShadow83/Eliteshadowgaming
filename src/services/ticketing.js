@@ -5,7 +5,7 @@ export function getTicketSettings(guildId) {
   const row = db.prepare('SELECT * FROM ticket_settings WHERE guild_id = ?').get(guildId);
   if (row) return row;
 
-  db.prepare('INSERT INTO ticket_settings (guild_id, enabled) VALUES (?, 1)').run(guildId);
+  db.prepare('INSERT INTO ticket_settings (guild_id, enabled, opener_can_close) VALUES (?, 1, 1)').run(guildId);
   return db.prepare('SELECT * FROM ticket_settings WHERE guild_id = ?').get(guildId);
 }
 
@@ -18,6 +18,7 @@ export function updateTicketSettings(guildId, patch) {
     category_channel_id = ?,
     support_role_id = ?,
     transcript_log_channel_id = ?,
+    opener_can_close = ?,
     updated_at = CURRENT_TIMESTAMP
     WHERE guild_id = ?`).run(
     next.enabled ? 1 : 0,
@@ -25,6 +26,7 @@ export function updateTicketSettings(guildId, patch) {
     next.category_channel_id,
     next.support_role_id,
     next.transcript_log_channel_id,
+    next.opener_can_close ? 1 : 0,
     guildId
   );
   return getTicketSettings(guildId);
@@ -34,9 +36,19 @@ export function getOpenTicketForUser(guildId, userId) {
   return db.prepare('SELECT * FROM tickets WHERE guild_id = ? AND owner_user_id = ? AND status = ?').get(guildId, userId, 'open');
 }
 
+export function getTicketByChannel(channelId) {
+  return db.prepare('SELECT * FROM tickets WHERE channel_id = ?').get(channelId);
+}
+
 export function createTicketRecord({ guildId, channelId, ownerUserId }) {
   db.prepare('INSERT INTO tickets (guild_id, channel_id, owner_user_id, status) VALUES (?, ?, ?, ?)')
     .run(guildId, channelId, ownerUserId, 'open');
+}
+
+export function claimTicketRecord(channelId, claimerUserId) {
+  db.prepare('UPDATE tickets SET claimed_by_user_id = ?, claimed_at = CURRENT_TIMESTAMP WHERE channel_id = ? AND status = ?')
+    .run(claimerUserId, channelId, 'open');
+  return getTicketByChannel(channelId);
 }
 
 export function closeTicketRecord(channelId, closerUserId) {
@@ -65,5 +77,5 @@ export async function createTicketChannel({ guild, user }) {
   });
 
   createTicketRecord({ guildId: guild.id, channelId: ticketChannel.id, ownerUserId: user.id });
-  return ticketChannel;
+  return { ticketChannel, settings };
 }

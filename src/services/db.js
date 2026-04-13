@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS ticket_settings (
   category_channel_id TEXT,
   support_role_id TEXT,
   transcript_log_channel_id TEXT,
+  opener_can_close INTEGER DEFAULT 1,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -71,6 +72,8 @@ CREATE TABLE IF NOT EXISTS tickets (
   channel_id TEXT NOT NULL UNIQUE,
   owner_user_id TEXT NOT NULL,
   status TEXT DEFAULT 'open',
+  claimed_by_user_id TEXT,
+  claimed_at TEXT,
   closed_by_user_id TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   closed_at TEXT

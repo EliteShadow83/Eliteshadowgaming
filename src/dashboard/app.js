@@ -170,6 +170,7 @@ export function createDashboard({ client }) {
         <label>Category channel ID<input name="category_channel_id" value="${settings.category_channel_id ?? ''}" /></label>
         <label>Support role ID<input name="support_role_id" value="${settings.support_role_id ?? ''}" /></label>
         <label>Transcript log channel ID<input name="transcript_log_channel_id" value="${settings.transcript_log_channel_id ?? ''}" /></label>
+        <label class="inline"><input type="checkbox" name="opener_can_close" ${settings.opener_can_close ? 'checked' : ''}/> Allow ticket opener to close</label>
         <button class="btn primary" type="submit">Save Ticket Settings</button>
       </form>
       <p class="muted">After saving, run <code>/ticketpanel</code> to publish the open-ticket button.</p>
@@ -235,7 +236,8 @@ export function createDashboard({ client }) {
       enabled: Boolean(req.body.enabled),
       category_channel_id: req.body.category_channel_id || null,
       support_role_id: req.body.support_role_id || null,
-      transcript_log_channel_id: req.body.transcript_log_channel_id || null
+      transcript_log_channel_id: req.body.transcript_log_channel_id || null,
+      opener_can_close: Boolean(req.body.opener_can_close)
     });
 
     if (wantsJson(req)) return res.json({ ok: true, settings: updated });
