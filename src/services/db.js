@@ -55,6 +55,14 @@ CREATE TABLE IF NOT EXISTS leveling (
 );
 
 
+CREATE TABLE IF NOT EXISTS bot_presence_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  status TEXT DEFAULT 'online',
+  activity_type TEXT DEFAULT 'Playing',
+  activity_name TEXT DEFAULT 'Managing your server',
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS ticket_settings (
   guild_id TEXT PRIMARY KEY,
   enabled INTEGER DEFAULT 1,

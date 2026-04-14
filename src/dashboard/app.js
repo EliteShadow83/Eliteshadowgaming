@@ -6,6 +6,7 @@ import { EmbedBuilder } from 'discord.js';
 import { addAutomodTerm, getGuildSettings, listAutomodTerms, removeAutomodTerm, updateGuildSettings } from '../services/guildSettings.js';
 import { getTicketSettings, updateTicketSettings } from '../services/ticketing.js';
 import db from '../services/db.js';
+import { applyBotPresence, getBotPresenceSettings, updateBotPresenceSettings } from '../services/botPresence.js';
 
 const scopes = ['identify', 'guilds'];
 
@@ -64,11 +65,49 @@ export function createDashboard({ client }) {
 
     res.send(renderPage('Your Servers', `
       <h1>Your Servers</h1>
-      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a></p>
+      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a> <a class="btn small" href="/dashboard/bot">Bot Status Settings</a></p>
       <div class="grid">${cards}</div>
     `, req.user));
   });
 
+
+
+  app.get('/dashboard/bot', ensureAuth, (req, res) => {
+    const settings = getBotPresenceSettings();
+    res.send(renderPage('Bot Status Settings', `
+      <h1>Bot Status Settings</h1>
+      <form class="card form" method="post" action="/dashboard/bot">
+        <label>Status
+          <select name="status">
+            ${['online', 'idle', 'dnd', 'invisible'].map((status) => `<option value="${status}" ${settings.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+          </select>
+        </label>
+
+        <label>Activity type
+          <select name="activity_type">
+            ${['Playing', 'Streaming', 'Listening', 'Watching', 'Competing'].map((type) => `<option value="${type}" ${settings.activity_type === type ? 'selected' : ''}>${type}</option>`).join('')}
+          </select>
+        </label>
+
+        <label>Activity text
+          <input name="activity_name" value="${escapeHtml(settings.activity_name || '')}" maxlength="128" />
+        </label>
+
+        <button class="btn primary" type="submit">Update Bot Presence</button>
+      </form>
+    `, req.user));
+  });
+
+  app.post('/dashboard/bot', ensureAuth, (req, res) => {
+    const updated = updateBotPresenceSettings({
+      status: req.body.status || 'online',
+      activity_type: req.body.activity_type || 'Playing',
+      activity_name: req.body.activity_name || ''
+    });
+
+    applyBotPresence(client, updated);
+    res.redirect('/dashboard/bot');
+  });
 
   app.get('/dashboard/database', ensureAuth, (req, res) => {
     const tables = listTables();
@@ -442,6 +481,7 @@ function renderPage(title, body, user) {
     <div class="wrap">
       <div class="top">
         <a class="logo" href="/dashboard">⚡ Elite Discord Suite</a>
+        <a class="btn small" href="/dashboard/bot">Bot</a>
         <a class="btn small" href="/dashboard/database">Database</a>
         <span class="muted">${user ? `Logged in as ${escapeHtml(user.username || user.id)}` : 'Discord Dashboard'}</span>
       </div>
