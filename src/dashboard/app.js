@@ -5,6 +5,7 @@ import { Strategy as DiscordStrategy } from 'passport-discord';
 import { EmbedBuilder } from 'discord.js';
 import { addAutomodTerm, getGuildSettings, listAutomodTerms, removeAutomodTerm, updateGuildSettings } from '../services/guildSettings.js';
 import { getTicketSettings, updateTicketSettings } from '../services/ticketing.js';
+import db from '../services/db.js';
 
 const scopes = ['identify', 'guilds'];
 
@@ -63,8 +64,104 @@ export function createDashboard({ client }) {
 
     res.send(renderPage('Your Servers', `
       <h1>Your Servers</h1>
+      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a></p>
       <div class="grid">${cards}</div>
     `, req.user));
+  });
+
+
+  app.get('/dashboard/database', ensureAuth, (req, res) => {
+    const tables = listTables();
+    const selectedTable = sanitizeIdentifier(req.query.table) && tables.includes(req.query.table) ? req.query.table : tables[0];
+    const rows = selectedTable ? db.prepare(`SELECT * FROM ${selectedTable} LIMIT 200`).all() : [];
+    const columns = selectedTable ? db.prepare(`PRAGMA table_info(${selectedTable})`).all() : [];
+    const pkColumn = columns.find((c) => c.pk)?.name || 'id';
+
+    const tableOptions = tables.map((t) => `<option value="${t}" ${t === selectedTable ? 'selected' : ''}>${t}</option>`).join('');
+    const rowCards = rows.map((row) => {
+      const pkValue = row[pkColumn];
+      return `
+        <details class="card">
+          <summary><strong>${pkColumn}:</strong> ${escapeHtml(String(pkValue ?? '(null)'))}</summary>
+          <form class="form" method="post" action="/dashboard/database/upsert">
+            <input type="hidden" name="table" value="${selectedTable}" />
+            <input type="hidden" name="pkColumn" value="${pkColumn}" />
+            <input type="hidden" name="pkValue" value="${escapeHtml(String(pkValue ?? ''))}" />
+            <label>Row JSON<textarea name="payload" rows="8">${escapeHtml(JSON.stringify(row, null, 2))}</textarea></label>
+            <button class="btn" type="submit">Save Row</button>
+          </form>
+          <form method="post" action="/dashboard/database/delete">
+            <input type="hidden" name="table" value="${selectedTable}" />
+            <input type="hidden" name="pkColumn" value="${pkColumn}" />
+            <input type="hidden" name="pkValue" value="${escapeHtml(String(pkValue ?? ''))}" />
+            <button class="btn" type="submit">Delete Row</button>
+          </form>
+        </details>`;
+    }).join('') || '<p class="muted">No rows found.</p>';
+
+    res.send(renderPage('Database Manager', `
+      <h1>Database Manager</h1>
+      <p class="muted">Browse and edit SQLite data directly from the dashboard.</p>
+      <form class="card form" method="get" action="/dashboard/database">
+        <label>Table<select name="table">${tableOptions}</select></label>
+        <button class="btn" type="submit">Load Table</button>
+      </form>
+
+      <div class="card">
+        <h3>Create New Row (${selectedTable || 'No table'})</h3>
+        <form class="form" method="post" action="/dashboard/database/upsert">
+          <input type="hidden" name="table" value="${selectedTable || ''}" />
+          <input type="hidden" name="pkColumn" value="${pkColumn}" />
+          <input type="hidden" name="pkValue" value="" />
+          <label>Row JSON<textarea name="payload" rows="8" placeholder='{"column":"value"}'></textarea></label>
+          <button class="btn primary" type="submit">Insert Row</button>
+        </form>
+      </div>
+
+      <h2>Rows (${rows.length})</h2>
+      <div class="grid">${rowCards}</div>
+    `, req.user));
+  });
+
+  app.post('/dashboard/database/upsert', ensureAuth, (req, res) => {
+    const table = sanitizeIdentifier(req.body.table);
+    const pkColumn = sanitizeIdentifier(req.body.pkColumn);
+    const pkValue = req.body.pkValue;
+    if (!table || !pkColumn) return res.status(400).send('Invalid table or primary key.');
+
+    let payload;
+    try {
+      payload = JSON.parse(req.body.payload || '{}');
+    } catch {
+      return res.status(400).send('Payload must be valid JSON.');
+    }
+
+    const entries = Object.entries(payload).filter(([key]) => sanitizeIdentifier(key));
+    if (!entries.length) return res.redirect(`/dashboard/database?table=${table}`);
+
+    if (pkValue) {
+      const updateEntries = entries.filter(([key]) => key !== pkColumn);
+      if (updateEntries.length) {
+        const setClause = updateEntries.map(([key]) => `${key} = ?`).join(', ');
+        db.prepare(`UPDATE ${table} SET ${setClause} WHERE ${pkColumn} = ?`).run(...updateEntries.map(([, value]) => value), pkValue);
+      }
+    } else {
+      const cols = entries.map(([key]) => key);
+      const placeholders = cols.map(() => '?').join(', ');
+      db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`).run(...entries.map(([, value]) => value));
+    }
+
+    res.redirect(`/dashboard/database?table=${table}`);
+  });
+
+  app.post('/dashboard/database/delete', ensureAuth, (req, res) => {
+    const table = sanitizeIdentifier(req.body.table);
+    const pkColumn = sanitizeIdentifier(req.body.pkColumn);
+    const pkValue = req.body.pkValue;
+    if (!table || !pkColumn || !pkValue) return res.status(400).send('Missing delete parameters.');
+
+    db.prepare(`DELETE FROM ${table} WHERE ${pkColumn} = ?`).run(pkValue);
+    res.redirect(`/dashboard/database?table=${table}`);
   });
 
   app.get('/dashboard/:guildId', ensureAuth, (req, res) => {
@@ -292,6 +389,15 @@ function forbidden(res) {
   return res.status(403).send(renderPage('Forbidden', '<p>You do not have Manage Server permission for this guild.</p>'));
 }
 
+function listTables() {
+  return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
+}
+
+function sanitizeIdentifier(value) {
+  if (typeof value !== 'string') return null;
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value) ? value : null;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -336,6 +442,7 @@ function renderPage(title, body, user) {
     <div class="wrap">
       <div class="top">
         <a class="logo" href="/dashboard">⚡ Elite Discord Suite</a>
+        <a class="btn small" href="/dashboard/database">Database</a>
         <span class="muted">${user ? `Logged in as ${escapeHtml(user.username || user.id)}` : 'Discord Dashboard'}</span>
       </div>
       ${body}
