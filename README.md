@@ -9,6 +9,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - Per-guild settings storage
 - Web dashboard with Discord login
 - Admin bot manager (add/edit bots, client secrets/tokens, default presence, and start/stop variants)
+- Variants with configured bot tokens auto-start on service startup
 - Per-server bot presence controls on each server page
 - Non-admins can only switch to bots already invited in that server
 - Multi-bot support with per-bot license key assignment

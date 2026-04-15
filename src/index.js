@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createBotClient } from './bot/client.js';
 import { createDashboard } from './dashboard/app.js';
-import { applyBotVariantPresence, getBotVariantBySlug } from './services/bots.js';
+import { applyBotVariantPresence, getBotVariantBySlug, getBotVariants } from './services/bots.js';
 
 const required = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET', 'DISCORD_CALLBACK_URL', 'SESSION_SECRET'];
 for (const key of required) {
@@ -15,10 +15,22 @@ const runningVariantClients = new Map();
 const client = createBotClient();
 const runningSlug = process.env.RUNNING_BOT_SLUG || 'default';
 
-client.once('ready', () => {
+client.once('ready', async () => {
   const variant = getBotVariantBySlug(runningSlug);
   applyBotVariantPresence(client, variant);
   runningVariantClients.set(runningSlug, client);
+
+  const variants = getBotVariants();
+  for (const v of variants) {
+    if (v.slug === runningSlug) continue;
+    if (!v.bot_token) continue;
+    try {
+      await botRuntime.startVariant(v);
+      console.log(`[bot-runtime] Auto-started variant: ${v.slug}`);
+    } catch (err) {
+      console.error(`[bot-runtime] Failed to auto-start ${v.slug}:`, err.message);
+    }
+  }
 });
 
 const botRuntime = {
@@ -34,6 +46,9 @@ const botRuntime = {
     if (!variant?.slug) throw new Error('Variant slug is required.');
     if (runningVariantClients.has(variant.slug)) return;
     if (!variant.bot_token) throw new Error('This variant has no bot token configured.');
+    if ([...runningVariantClients.values()].some((c) => c.token === variant.bot_token)) {
+      throw new Error('A running variant is already using this bot token.');
+    }
 
     const bot = createBotClient();
     await bot.login(variant.bot_token);
