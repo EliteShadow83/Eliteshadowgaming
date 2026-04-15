@@ -25,6 +25,11 @@ const botRuntime = {
   listRunningSlugs() {
     return [...runningVariantClients.keys()];
   },
+  isVariantInGuild(slug, guildId) {
+    const bot = runningVariantClients.get(slug);
+    if (!bot) return false;
+    return bot.guilds.cache.has(guildId);
+  },
   async startVariant(variant) {
     if (!variant?.slug) throw new Error('Variant slug is required.');
     if (runningVariantClients.has(variant.slug)) return;

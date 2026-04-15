@@ -10,8 +10,10 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - Web dashboard with Discord login
 - Admin bot manager (add/edit bots, client secrets/tokens, default presence, and start/stop variants)
 - Per-server bot presence controls on each server page
+- Non-admins can only switch to bots already invited in that server
 - Multi-bot support with per-bot license key assignment
 - License-key paywall for bot invites + manual key creation (configurable server-count per key)
+- License keys are tied to a specific bot variant; redeeming auto-selects the tied bot
 - Database manager in dashboard (browse/edit SQLite tables + debug table drop)
 - Admin secret unlock required for DB manager and viewing recent license keys
 - Embed creator in dashboard (build + send rich embeds)

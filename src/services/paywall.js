@@ -14,28 +14,27 @@ export function getGuildLicense(guildId, botSlug = 'default') {
     WHERE gl.guild_id = ? AND gl.bot_slug = ?`).get(guildId, botSlug);
 }
 
-export function redeemLicenseKey({ licenseKey, guildId, userId, botSlug = 'default' }) {
+export function redeemLicenseKey({ licenseKey, guildId, userId }) {
   const key = db.prepare(`SELECT * FROM license_keys
     WHERE license_key = ?
-    AND bot_slug = ?
-    AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))`).get(licenseKey.trim(), botSlug);
+    AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))`).get(licenseKey.trim());
 
   if (!key) {
-    throw new Error('Invalid key for selected bot.');
+    throw new Error('Invalid key.');
   }
 
   if (Number(key.redeemed_count || 0) >= Number(key.max_servers || 1)) {
     throw new Error('This key has reached its server limit.');
   }
 
-  if (hasActiveLicense(guildId, botSlug)) {
+  if (hasActiveLicense(guildId, key.bot_slug)) {
     throw new Error('This guild already has an active license for this bot.');
   }
 
   const tx = db.transaction(() => {
     db.prepare(`INSERT INTO guild_licenses (guild_id, key_id, bot_slug, plan, status, activated_at, expires_at)
       VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, ?)`) 
-      .run(guildId, key.id, botSlug, key.plan, key.expires_at);
+.run(guildId, key.id, key.bot_slug, key.plan, key.expires_at);
 
     const nextCount = Number(key.redeemed_count || 0) + 1;
     const nextStatus = nextCount >= Number(key.max_servers || 1) ? 'redeemed' : 'partially_redeemed';
@@ -50,7 +49,7 @@ export function redeemLicenseKey({ licenseKey, guildId, userId, botSlug = 'defau
   });
 
   tx();
-  return getGuildLicense(guildId, botSlug);
+  return getGuildLicense(guildId, key.bot_slug);
 }
 
 export function createManualLicenseKey({ plan = 'premium', botSlug = 'default', maxServers = 1, expiresAt = null, createdBy = 'manual' }) {

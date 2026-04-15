@@ -120,7 +120,6 @@ export function createDashboard({ client, botRuntime }) {
       <div class="grid two">
         <form class="card form" method="post" action="/dashboard/licenses/redeem">
           <h3>Redeem Key for Server</h3>
-          <label>Bot<select name="botSlug" required>${botOptions}</select></label>
           <label>Server<select name="guildId" required>${guildOptions}</select></label>
           <label>License key<input name="licenseKey" required /></label>
           <p class="muted">Keys can be valid for multiple servers depending on key limits.</p>
@@ -140,10 +139,9 @@ ${adminPanel}
   app.post('/dashboard/licenses/redeem', ensureAuth, (req, res) => {
     try {
       const guildId = req.body.guildId;
-      const botSlug = req.body.botSlug || 'default';
       if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
-      redeemLicenseKey({ licenseKey: req.body.licenseKey || '', guildId, userId: req.user.id, botSlug });
-      res.redirect(`/dashboard/licenses?guildId=${guildId}&bot=${botSlug}`);
+      redeemLicenseKey({ licenseKey: req.body.licenseKey || '', guildId, userId: req.user.id });
+      res.redirect(`/dashboard/licenses?guildId=${guildId}`);
     } catch (err) {
       res.status(400).send(renderPage('Redeem Failed', `<p>${escapeHtml(err.message)}</p><p><a class="btn" href="/dashboard/licenses">Back</a></p>`, req.user));
     }
@@ -215,6 +213,8 @@ ${adminPanel}
         <label>Slug<input name=\"slug\" required /></label>
         <label>Name<input name=\"name\" required /></label>
         <label>Client ID<input name=\"clientId\" required /></label>
+        <label>Client Secret<input name=\"clientSecret\" /></label>
+        <label>Bot Token<input name=\"botToken\" /></label>
         <label>Permissions<input name=\"permissions\" value=\"8\" /></label>
         <label>Status<input name=\"status\" value=\"online\" /></label>
         <label>Activity Type<input name=\"activityType\" value=\"Playing\" /></label>
@@ -416,15 +416,20 @@ ${adminPanel}
     if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
 
     const settings = getGuildSettings(guildId);
-    const selectedBotSlug = req.query.bot || getBotVariants()[0]?.slug || 'default';
+    const allBots = getBotVariants();
+    const allowedBots = isAdminUnlocked(req)
+      ? allBots
+      : allBots.filter((b) => botRuntime?.isVariantInGuild?.(b.slug, guildId));
+    const fallbackBot = allowedBots[0] || allBots[0];
+    const selectedBotSlug = allowedBots.find((b) => b.slug === req.query.bot)?.slug || fallbackBot?.slug || 'default';
     const selectedBot = getBotVariantBySlug(selectedBotSlug);
     const license = getGuildLicense(guildId, selectedBotSlug);
-    const botOptions = getBotVariants().map((b) => `<option value=\"${b.slug}\" ${b.slug === selectedBotSlug ? 'selected' : ''}>${escapeHtml(b.name)} (${b.slug})</option>`).join('');
+    const botOptions = allowedBots.map((b) => `<option value="${b.slug}" ${b.slug === selectedBotSlug ? 'selected' : ''}>${escapeHtml(b.name)} (${b.slug})</option>`).join('');
     res.send(renderPage('Guild Settings', `
       <h1>Guild Settings</h1>
       <form class="card form" method="get" action="/dashboard/${guildId}">
         <label>Bot for this page<select name="bot">${botOptions}</select></label>
-        <button class="btn" type="submit">Switch Bot Context</button>
+        <div class="actions"><button class="btn" type="submit">Switch Bot Context</button><a class="btn" href="/dashboard/invite/${guildId}?bot=${selectedBotSlug}">Invite Additional Bot</a></div>
       </form>
       <p class="muted">License (${selectedBotSlug}): ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
       <div class="tabs">
