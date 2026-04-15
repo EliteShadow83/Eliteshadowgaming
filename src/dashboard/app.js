@@ -6,9 +6,8 @@ import { EmbedBuilder } from 'discord.js';
 import { addAutomodTerm, getGuildSettings, listAutomodTerms, removeAutomodTerm, updateGuildSettings } from '../services/guildSettings.js';
 import { getTicketSettings, updateTicketSettings } from '../services/ticketing.js';
 import db from '../services/db.js';
-import { applyBotPresence, getBotPresenceSettings, updateBotPresenceSettings } from '../services/botPresence.js';
 import { createManualLicenseKey, getGuildLicense, hasActiveLicense, listRecentLicenseKeys, redeemLicenseKey } from '../services/paywall.js';
-import { getBotVariantBySlug, getBotVariants } from '../services/bots.js';
+import { applyBotVariantPresence, createBotVariant, getBotVariantBySlug, getBotVariants, updateBotVariant } from '../services/bots.js';
 
 const scopes = ['identify', 'guilds'];
 
@@ -82,7 +81,7 @@ export function createDashboard({ client }) {
 
     res.send(renderPage('Your Servers', `
       <h1>Your Servers</h1>
-      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a> <a class="btn small" href="/dashboard/bot">Bot Status Settings</a> <a class="btn small" href="/dashboard/licenses">License Keys</a></p>
+      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a> <a class="btn small" href="/dashboard/bots">Bot Manager</a> <a class="btn small" href="/dashboard/licenses">License Keys</a></p>
       <div class="grid">${cards}</div>
     `, req.user));
   });
@@ -180,41 +179,75 @@ ${adminPanel}
     res.redirect(inviteUrl);
   });
 
-  app.get('/dashboard/bot', ensureAuth, (req, res) => {
-    const settings = getBotPresenceSettings();
-    res.send(renderPage('Bot Status Settings', `
-      <h1>Bot Status Settings</h1>
-      <form class="card form" method="post" action="/dashboard/bot">
-        <label>Status
-          <select name="status">
-            ${['online', 'idle', 'dnd', 'invisible'].map((status) => `<option value="${status}" ${settings.status === status ? 'selected' : ''}>${status}</option>`).join('')}
-          </select>
-        </label>
+  app.get('/dashboard/bots', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+    }
 
-        <label>Activity type
-          <select name="activity_type">
-            ${['Playing', 'Streaming', 'Listening', 'Watching', 'Competing'].map((type) => `<option value="${type}" ${settings.activity_type === type ? 'selected' : ''}>${type}</option>`).join('')}
-          </select>
-        </label>
+    const bots = getBotVariants();
+    const cards = bots.map((b) => `
+      <form class=\"card form\" method=\"post\" action=\"/dashboard/bots/${b.slug}\">
+        <h3>${escapeHtml(b.name)} (${b.slug})</h3>
+        <label>Name<input name=\"name\" value=\"${escapeHtml(b.name)}\" /></label>
+        <label>Client ID<input name=\"clientId\" value=\"${escapeHtml(b.client_id)}\" /></label>
+        <label>Permissions<input name=\"permissions\" value=\"${escapeHtml(b.permissions || '8')}\" /></label>
+        <label>Status<input name=\"status\" value=\"${escapeHtml(b.status || 'online')}\" /></label>
+        <label>Activity Type<input name=\"activityType\" value=\"${escapeHtml(b.activity_type || 'Playing')}\" /></label>
+        <label>Activity Name<input name=\"activityName\" value=\"${escapeHtml(b.activity_name || '')}\" /></label>
+        <button class=\"btn\" type=\"submit\">Save Bot</button>
+      </form>`).join('');
 
-        <label>Activity text
-          <input name="activity_name" value="${escapeHtml(settings.activity_name || '')}" maxlength="128" />
-        </label>
-
-        <button class="btn primary" type="submit">Update Bot Presence</button>
+    res.send(renderPage('Bot Manager', `
+      <h1>Bot Manager</h1>
+      <p class=\"muted\">Admin can add/edit bots and their default presence settings.</p>
+      <form class=\"card form\" method=\"post\" action=\"/dashboard/bots/create\">
+        <h3>Add Bot</h3>
+        <label>Slug<input name=\"slug\" required /></label>
+        <label>Name<input name=\"name\" required /></label>
+        <label>Client ID<input name=\"clientId\" required /></label>
+        <label>Permissions<input name=\"permissions\" value=\"8\" /></label>
+        <label>Status<input name=\"status\" value=\"online\" /></label>
+        <label>Activity Type<input name=\"activityType\" value=\"Playing\" /></label>
+        <label>Activity Name<input name=\"activityName\" value=\"Managing your server\" /></label>
+        <button class=\"btn primary\" type=\"submit\">Create Bot</button>
       </form>
+      <div class=\"grid\">${cards}</div>
     `, req.user));
   });
 
-  app.post('/dashboard/bot', ensureAuth, (req, res) => {
-    const updated = updateBotPresenceSettings({
+  app.post('/dashboard/bots/create', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+    }
+
+    createBotVariant(req.body);
+    res.redirect('/dashboard/bots');
+  });
+
+  app.post('/dashboard/bots/:slug', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+    }
+
+    updateBotVariant(req.params.slug, req.body);
+    res.redirect('/dashboard/bots');
+  });
+
+  app.post('/api/guilds/:guildId/bot-presence', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    const bot = updateBotVariant(req.body.botSlug || 'default', {
       status: req.body.status || 'online',
-      activity_type: req.body.activity_type || 'Playing',
-      activity_name: req.body.activity_name || ''
+      activityType: req.body.activityType || 'Playing',
+      activityName: req.body.activityName || ''
     });
 
-    applyBotPresence(client, updated);
-    res.redirect('/dashboard/bot');
+    const runningSlug = process.env.RUNNING_BOT_SLUG || 'default';
+    if (bot && bot.slug === runningSlug) applyBotVariantPresence(client, bot);
+
+    if (wantsJson(req)) return res.json({ ok: true, bot });
+    res.redirect(`/dashboard/${guildId}?bot=${encodeURIComponent(req.body.botSlug || 'default')}`);
   });
 
   app.get('/dashboard/database', ensureAuth, (req, res) => {
@@ -346,10 +379,17 @@ ${adminPanel}
     if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
 
     const settings = getGuildSettings(guildId);
-    const license = getGuildLicense(guildId, getBotVariants()[0]?.slug || 'default');
+    const selectedBotSlug = req.query.bot || getBotVariants()[0]?.slug || 'default';
+    const selectedBot = getBotVariantBySlug(selectedBotSlug);
+    const license = getGuildLicense(guildId, selectedBotSlug);
+    const botOptions = getBotVariants().map((b) => `<option value=\"${b.slug}\" ${b.slug === selectedBotSlug ? 'selected' : ''}>${escapeHtml(b.name)} (${b.slug})</option>`).join('');
     res.send(renderPage('Guild Settings', `
       <h1>Guild Settings</h1>
-      <p class="muted">License: ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
+      <form class="card form" method="get" action="/dashboard/${guildId}">
+        <label>Bot for this page<select name="bot">${botOptions}</select></label>
+        <button class="btn" type="submit">Switch Bot Context</button>
+      </form>
+      <p class="muted">License (${selectedBotSlug}): ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
       <div class="tabs">
         <a class="btn small" href="/dashboard/${guildId}/automod">Automod Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/embed">Embed Creator</a>
@@ -360,6 +400,23 @@ ${adminPanel}
         <label class="inline"><input type="checkbox" name="automod_enabled" ${settings.automod_enabled ? 'checked' : ''}/> Enable automod</label>
         <label class="inline"><input type="checkbox" name="leveling_enabled" ${settings.leveling_enabled ? 'checked' : ''}/> Enable leveling</label>
         <button class="btn primary" type="submit">Save Settings</button>
+      </form>
+
+      <form class="card form" method="post" action="/api/guilds/${guildId}/bot-presence">
+        <input type="hidden" name="botSlug" value="${selectedBotSlug}" />
+        <h3>Bot Presence (${selectedBotSlug})</h3>
+        <label>Status
+          <select name="status">
+            ${['online','idle','dnd','invisible'].map((status) => `<option value="${status}" ${selectedBot.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+          </select>
+        </label>
+        <label>Activity type
+          <select name="activityType">
+            ${['Playing','Streaming','Listening','Watching','Competing'].map((type) => `<option value="${type}" ${selectedBot.activity_type === type ? 'selected' : ''}>${type}</option>`).join('')}
+          </select>
+        </label>
+        <label>Activity text<input name="activityName" value="${escapeHtml(selectedBot.activity_name || '')}" maxlength="128" /></label>
+        <button class="btn" type="submit">Save Presence for This Bot</button>
       </form>
     `, req.user));
   });
@@ -646,7 +703,7 @@ function renderPage(title, body, user) {
     <div class="wrap">
       <div class="top">
         <a class="logo" href="/dashboard">⚡ Elite Discord Suite</a>
-        <a class="btn small" href="/dashboard/bot">Bot</a>
+        <a class="btn small" href="/dashboard/bots">Bots</a>
         <a class="btn small" href="/dashboard/licenses">Licenses</a>
         <a class="btn small" href="/dashboard/database">Database</a>
         <span class="muted">${user ? `Logged in as ${escapeHtml(user.username || user.id)}` : 'Discord Dashboard'}</span>

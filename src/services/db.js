@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS guild_licenses (
   expires_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS bot_variants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  permissions TEXT DEFAULT '8',
+  status TEXT DEFAULT 'online',
+  activity_type TEXT DEFAULT 'Playing',
+  activity_name TEXT DEFAULT 'Managing your server',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS bot_presence_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   status TEXT DEFAULT 'online',

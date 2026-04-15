@@ -8,7 +8,8 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - Welcome messages
 - Per-guild settings storage
 - Web dashboard with Discord login
-- Bot status/presence control from dashboard
+- Admin bot manager (add/edit bots + default presence)
+- Per-server bot presence controls on each server page
 - Multi-bot support with per-bot license key assignment
 - License-key paywall for bot invites + manual key creation (configurable server-count per key)
 - Database manager in dashboard (browse/edit SQLite tables + debug table drop)
@@ -82,6 +83,7 @@ To match enterprise/premium scale you should add:
    - `SESSION_SECRET`: Any strong random secret string
    - `DASHBOARD_ADMIN_SECRET`: Required for manual key creation in license manager
    - `BOT_VARIANTS_JSON`: Optional JSON array of bot variants for multi-bot invites and key assignment
+   - `RUNNING_BOT_SLUG`: Which configured bot variant this runtime should apply presence settings for
 
 6. **Enable required intents in Discord Developer Portal**
    - In your bot settings, enable privileged intents as needed (for this starter, Message Content and Server Members are used).
