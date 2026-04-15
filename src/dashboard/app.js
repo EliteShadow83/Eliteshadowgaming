@@ -258,6 +258,14 @@ ${adminPanel}
         </form>
       </div>
 
+      <form class="card form" method="post" action="/dashboard/database/drop-table">
+        <h3>Debug: Delete Table</h3>
+        <p class="muted">This permanently drops a table and all data.</p>
+        <label>Table to delete<select name="table" required>${tableOptions}</select></label>
+        <label>Type DELETE to confirm<input name="confirmWord" required /></label>
+        <button class="btn" type="submit">Drop Table</button>
+      </form>
+
       <h2>Rows (${rows.length})</h2>
       <div class="grid">${rowCards}</div>
     `, req.user));
@@ -308,6 +316,19 @@ ${adminPanel}
 
     db.prepare(`DELETE FROM ${table} WHERE ${pkColumn} = ?`).run(pkValue);
     res.redirect(`/dashboard/database?table=${table}`);
+  });
+
+  app.post('/dashboard/database/drop-table', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+    }
+
+    const table = sanitizeIdentifier(req.body.table);
+    if (!table) return res.status(400).send('Invalid table name.');
+    if (req.body.confirmWord !== 'DELETE') return res.status(400).send('Confirmation word must be DELETE.');
+
+    db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
+    res.redirect('/dashboard/database');
   });
 
   app.get('/dashboard/:guildId', ensureAuth, (req, res) => {
