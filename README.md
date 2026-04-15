@@ -17,7 +17,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - License keys are tied to a specific bot variant; redeeming auto-selects the tied bot
 - Database manager in dashboard (browse/edit SQLite tables + debug table drop)
 - Admin secret unlock required for DB manager and viewing recent license keys
-- Embed creator in dashboard (build + send rich embeds)
+- Embed creator in dashboard (build + send rich embeds with live preview)
 - Ticketing system (support role ping/access, claim tickets, opener-close toggle, and transcript threads in transcript channel)
 - OAuth2 invite link to add the bot to any server you manage
 

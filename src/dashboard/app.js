@@ -519,16 +519,64 @@ ${adminPanel}
     res.send(renderPage('Embed Creator', `
       <h1>Embed Creator</h1>
       <a class="btn small" href="/dashboard/${guildId}">Back</a>
-      <form class="card form" method="post" action="/api/guilds/${guildId}/embed/send">
-        <label>Target channel<select name="channelId" required>${options}</select></label>
-        <label>Title<input name="title" maxlength="256" /></label>
-        <label>Description<textarea name="description" rows="6" maxlength="4096"></textarea></label>
-        <label>Color<input name="color" value="#5865F2" /></label>
-        <label>Footer<input name="footer" maxlength="2048" /></label>
-        <label>Image URL<input name="imageUrl" type="url" /></label>
-        <label>Thumbnail URL<input name="thumbnailUrl" type="url" /></label>
-        <button class="btn primary" type="submit">Send Embed</button>
-      </form>
+      <div class="grid two">
+        <form id="embedForm" class="card form" method="post" action="/api/guilds/${guildId}/embed/send">
+          <label>Target channel<select name="channelId" required>${options}</select></label>
+          <label>Title<input name="title" maxlength="256" /></label>
+          <label>Description<textarea name="description" rows="6" maxlength="4096"></textarea></label>
+          <label>Color<input name="color" value="#5865F2" /></label>
+          <label>Footer<input name="footer" maxlength="2048" /></label>
+          <label>Image URL<input name="imageUrl" type="url" /></label>
+          <label>Thumbnail URL<input name="thumbnailUrl" type="url" /></label>
+          <button class="btn primary" type="submit">Send Embed</button>
+        </form>
+
+        <div class="card">
+          <h3>Live Preview</h3>
+          <div id="embedPreview" style="border-left:4px solid #5865F2;padding:12px;background:#111827;border-radius:8px;">
+            <div id="previewTitle" style="font-weight:700;font-size:1rem;margin-bottom:8px;">Embed title preview</div>
+            <div id="previewDescription" class="muted" style="white-space:pre-wrap;">Embed description preview</div>
+            <div id="previewImageWrap" style="margin-top:10px;display:none;"><img id="previewImage" alt="embed image" style="max-width:100%;border-radius:8px;" /></div>
+            <div id="previewFooter" class="muted" style="margin-top:10px;font-size:.85rem;"></div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const form = document.getElementById('embedForm');
+          const title = form.querySelector('input[name="title"]');
+          const desc = form.querySelector('textarea[name="description"]');
+          const color = form.querySelector('input[name="color"]');
+          const footer = form.querySelector('input[name="footer"]');
+          const image = form.querySelector('input[name="imageUrl"]');
+
+          const titleOut = document.getElementById('previewTitle');
+          const descOut = document.getElementById('previewDescription');
+          const footerOut = document.getElementById('previewFooter');
+          const preview = document.getElementById('embedPreview');
+          const imageWrap = document.getElementById('previewImageWrap');
+          const imageOut = document.getElementById('previewImage');
+
+          function render() {
+            titleOut.textContent = title.value || 'Embed title preview';
+            descOut.textContent = desc.value || 'Embed description preview';
+            footerOut.textContent = footer.value || '';
+            preview.style.borderLeftColor = color.value || '#5865F2';
+
+            if (image.value) {
+              imageOut.src = image.value;
+              imageWrap.style.display = 'block';
+            } else {
+              imageOut.removeAttribute('src');
+              imageWrap.style.display = 'none';
+            }
+          }
+
+          [title, desc, color, footer, image].forEach((el) => el.addEventListener('input', render));
+          render();
+        })();
+      </script>
     `, req.user));
   });
 
