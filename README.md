@@ -9,7 +9,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - Per-guild settings storage
 - Web dashboard with Discord login
 - Bot status/presence control from dashboard
-- License-key paywall for bot invites + manual key creation
+- License-key paywall for bot invites + manual key creation (configurable server-count per key)
 - Database manager in dashboard (browse/edit SQLite tables)
 - Admin secret unlock required for DB manager and viewing recent license keys
 - Embed creator in dashboard (build + send rich embeds)

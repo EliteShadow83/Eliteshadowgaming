@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS license_keys (
   license_key TEXT NOT NULL UNIQUE,
   plan TEXT DEFAULT 'premium',
   status TEXT DEFAULT 'unused',
+  max_servers INTEGER DEFAULT 1,
+  redeemed_count INTEGER DEFAULT 0,
   expires_at TEXT,
   created_by TEXT,
   redeemed_by_user_id TEXT,

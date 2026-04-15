@@ -98,12 +98,13 @@ export function createDashboard({ client }) {
     const guildOptions = manageableGuilds.map((g) => `<option value="${g.id}" ${g.id === selectedGuildId ? 'selected' : ''}>${escapeHtml(g.name)} (${g.licensed ? 'licensed' : 'unlicensed'})</option>`).join('');
     const canViewSecrets = isAdminUnlocked(req);
     const recentKeys = canViewSecrets
-      ? listRecentLicenseKeys(30).map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('')
+      ? listRecentLicenseKeys(30).map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan} — usage: ${k.redeemed_count || 0}/${k.max_servers || 1}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('')
       : '';
     const adminPanel = canViewSecrets ? `
       <form class="card form" method="post" action="/dashboard/licenses/create">
         <h3>Manual Key Creation</h3>
         <label>Plan<input name="plan" value="premium" /></label>
+        <label>Max servers<input name="maxServers" type="number" min="1" value="1" /></label>
         <label>Expires at (optional, ISO date)<input name="expiresAt" placeholder="2026-12-31T00:00:00Z" /></label>
         <button class="btn" type="submit">Create Manual Key</button>
       </form>` : renderAdminUnlockCard('/dashboard/licenses', 'Unlock to view/create recent keys.');
@@ -117,6 +118,7 @@ export function createDashboard({ client }) {
           <h3>Redeem Key for Server</h3>
           <label>Server<select name="guildId" required>${guildOptions}</select></label>
           <label>License key<input name="licenseKey" required /></label>
+          <p class="muted">Keys can be valid for multiple servers depending on key limits.</p>
           <button class="btn primary" type="submit">Redeem Key</button>
         </form>
 
@@ -148,11 +150,12 @@ ${adminPanel}
 
     const created = createManualLicenseKey({
       plan: req.body.plan || 'premium',
+      maxServers: Number(req.body.maxServers || 1),
       expiresAt: req.body.expiresAt || null,
       createdBy: req.user.id
     });
 
-    res.send(renderPage('Key Created', `<h1>Manual License Key Created</h1><p><code>${created.license_key}</code></p><p><a class="btn" href="/dashboard/licenses">Back to license manager</a></p>`, req.user));
+    res.send(renderPage('Key Created', `<h1>Manual License Key Created</h1><p><code>${created.license_key}</code></p><p>Valid for <strong>${created.max_servers}</strong> server(s).</p><p><a class=\"btn\" href=\"/dashboard/licenses\">Back to license manager</a></p>`, req.user));
   });
 
   app.get('/dashboard/invite/:guildId', ensureAuth, (req, res) => {
