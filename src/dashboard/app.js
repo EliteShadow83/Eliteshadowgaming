@@ -47,6 +47,17 @@ export function createDashboard({ client }) {
   app.get('/auth/discord', passport.authenticate('discord'));
   app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/dashboard'));
 
+
+  app.post('/dashboard/admin/unlock', ensureAuth, (req, res) => {
+    const returnTo = req.body.returnTo || '/dashboard';
+    if (!process.env.DASHBOARD_ADMIN_SECRET || req.body.adminSecret !== process.env.DASHBOARD_ADMIN_SECRET) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Invalid admin secret.', returnTo));
+    }
+
+    req.session.adminUnlocked = true;
+    res.redirect(returnTo);
+  });
+
   app.get('/dashboard', ensureAuth, (req, res) => {
     const manageableGuilds = req.user.guilds
       .filter((g) => (BigInt(g.permissions) & 0x20n) === 0x20n)
@@ -85,8 +96,17 @@ export function createDashboard({ client }) {
 
     const selectedGuildId = manageableGuilds.find((g) => g.id === req.query.guildId)?.id || manageableGuilds[0]?.id || '';
     const guildOptions = manageableGuilds.map((g) => `<option value="${g.id}" ${g.id === selectedGuildId ? 'selected' : ''}>${escapeHtml(g.name)} (${g.licensed ? 'licensed' : 'unlicensed'})</option>`).join('');
-    const recentKeys = listRecentLicenseKeys(30)
-      .map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('');
+    const canViewSecrets = isAdminUnlocked(req);
+    const recentKeys = canViewSecrets
+      ? listRecentLicenseKeys(30).map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('')
+      : '';
+    const adminPanel = canViewSecrets ? `
+      <form class="card form" method="post" action="/dashboard/licenses/create">
+        <h3>Manual Key Creation</h3>
+        <label>Plan<input name="plan" value="premium" /></label>
+        <label>Expires at (optional, ISO date)<input name="expiresAt" placeholder="2026-12-31T00:00:00Z" /></label>
+        <button class="btn" type="submit">Create Manual Key</button>
+      </form>` : renderAdminUnlockCard('/dashboard/licenses', 'Unlock to view/create recent keys.');
 
     res.send(renderPage('License Paywall', `
       <h1>License Paywall</h1>
@@ -100,18 +120,12 @@ export function createDashboard({ client }) {
           <button class="btn primary" type="submit">Redeem Key</button>
         </form>
 
-        <form class="card form" method="post" action="/dashboard/licenses/create">
-          <h3>Manual Key Creation</h3>
-          <label>Admin secret<input name="adminSecret" type="password" required /></label>
-          <label>Plan<input name="plan" value="premium" /></label>
-          <label>Expires at (optional, ISO date)<input name="expiresAt" placeholder="2026-12-31T00:00:00Z" /></label>
-          <button class="btn" type="submit">Create Manual Key</button>
-        </form>
+${adminPanel}
       </div>
 
       <div class="card">
         <h3>Recent Keys</h3>
-        <ul>${recentKeys || '<li>No keys yet</li>'}</ul>
+        ${canViewSecrets ? `<ul>${recentKeys || '<li>No keys yet</li>'}</ul>` : '<p class="muted">Unlock admin access to view recent keys.</p>'}
       </div>
     `, req.user));
   });
@@ -128,8 +142,8 @@ export function createDashboard({ client }) {
   });
 
   app.post('/dashboard/licenses/create', ensureAuth, (req, res) => {
-    if (!process.env.DASHBOARD_ADMIN_SECRET || req.body.adminSecret !== process.env.DASHBOARD_ADMIN_SECRET) {
-      return res.status(403).send(renderPage('Forbidden', '<p>Invalid admin secret.</p>', req.user));
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required.', '/dashboard/licenses'));
     }
 
     const created = createManualLicenseKey({
@@ -191,6 +205,9 @@ export function createDashboard({ client }) {
   });
 
   app.get('/dashboard/database', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+    }
     const tables = listTables();
     const selectedTable = sanitizeIdentifier(req.query.table) && tables.includes(req.query.table) ? req.query.table : tables[0];
     const rows = selectedTable ? db.prepare(`SELECT * FROM ${selectedTable} LIMIT 200`).all() : [];
@@ -244,6 +261,9 @@ export function createDashboard({ client }) {
   });
 
   app.post('/dashboard/database/upsert', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+    }
     const table = sanitizeIdentifier(req.body.table);
     const pkColumn = sanitizeIdentifier(req.body.pkColumn);
     const pkValue = req.body.pkValue;
@@ -275,6 +295,9 @@ export function createDashboard({ client }) {
   });
 
   app.post('/dashboard/database/delete', ensureAuth, (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+    }
     const table = sanitizeIdentifier(req.body.table);
     const pkColumn = sanitizeIdentifier(req.body.pkColumn);
     const pkValue = req.body.pkValue;
@@ -518,6 +541,31 @@ function listTables() {
 function sanitizeIdentifier(value) {
   if (typeof value !== 'string') return null;
   return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value) ? value : null;
+}
+
+
+function isAdminUnlocked(req) {
+  return Boolean(req.session?.adminUnlocked);
+}
+
+function renderAdminUnlockCard(returnTo, note = 'Admin secret required.') {
+  return `
+    <div class="card">
+      <h3>Admin Unlock</h3>
+      <p class="muted">${note}</p>
+      <form class="form" method="post" action="/dashboard/admin/unlock">
+        <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
+        <label>Admin secret<input name="adminSecret" type="password" required /></label>
+        <button class="btn" type="submit">Unlock</button>
+      </form>
+    </div>`;
+}
+
+function renderAdminUnlockPage(user, message, returnTo) {
+  return renderPage('Admin Unlock Required', `
+    <h1>Admin Unlock Required</h1>
+    ${renderAdminUnlockCard(returnTo, message)}
+  `, user);
 }
 
 function escapeHtml(value) {
