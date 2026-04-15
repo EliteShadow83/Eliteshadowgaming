@@ -5,6 +5,7 @@ import { Strategy as DiscordStrategy } from 'passport-discord';
 import { EmbedBuilder } from 'discord.js';
 import { addAutomodTerm, getGuildSettings, listAutomodTerms, removeAutomodTerm, updateGuildSettings } from '../services/guildSettings.js';
 import { getTicketSettings, updateTicketSettings } from '../services/ticketing.js';
+import { getVcManagerSettings, updateVcManagerSettings } from '../services/vcManager.js';
 import db from '../services/db.js';
 import { createManualLicenseKey, getGuildLicense, hasActiveLicense, listRecentLicenseKeys, redeemLicenseKey } from '../services/paywall.js';
 import { applyBotVariantPresence, createBotVariant, getBotVariantBySlug, getBotVariants, updateBotVariant } from '../services/bots.js';
@@ -434,6 +435,8 @@ ${adminPanel}
       <p class="muted">License (${selectedBotSlug}): ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
       <div class="tabs">
         <a class="btn small" href="/dashboard/${guildId}/automod">Automod Setup</a>
+        <a class="btn small" href="/dashboard/${guildId}/logs">Logging Setup</a>
+        <a class="btn small" href="/dashboard/${guildId}/vc-manager">VC Manager Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/embed">Embed Creator</a>
         <a class="btn small" href="/dashboard/${guildId}/tickets">Ticketing Setup</a>
       </div>
@@ -600,6 +603,84 @@ ${adminPanel}
     `, req.user));
   });
 
+  app.get('/dashboard/:guildId/logs', ensureAuth, async (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
+
+    const settings = getGuildSettings(guildId);
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.status(404).send(renderPage('Not Found', '<p>Bot is not in this guild yet.</p>', req.user));
+
+    const channels = await guild.channels.fetch();
+    const channelOptions = channels
+      .filter((channel) => channel?.isTextBased() && !channel.isDMBased())
+      .map((channel) => `<option value="${channel.id}" ${settings.moderation_log_channel_id === channel.id ? 'selected' : ''}>#${escapeHtml(channel.name)}</option>`)
+      .join('');
+
+    res.send(renderPage('Logging Setup', `
+      <h1>Logging Setup</h1>
+      <a class="btn small" href="/dashboard/${guildId}">Back</a>
+      <form class="card form" method="post" action="/api/guilds/${guildId}/logs">
+        <label class="inline"><input type="checkbox" name="logging_enabled" ${settings.logging_enabled ? 'checked' : ''}/> Enable logging</label>
+        <label>Log channel
+          <select name="moderation_log_channel_id">
+            <option value="">Select a channel</option>
+            ${channelOptions}
+          </select>
+        </label>
+        <label class="inline"><input type="checkbox" name="log_member_events" ${settings.log_member_events ? 'checked' : ''}/> Member join/leave events</label>
+        <label class="inline"><input type="checkbox" name="log_message_edits" ${settings.log_message_edits ? 'checked' : ''}/> Message edits</label>
+        <label class="inline"><input type="checkbox" name="log_message_deletes" ${settings.log_message_deletes ? 'checked' : ''}/> Message deletes</label>
+        <label class="inline"><input type="checkbox" name="log_voice_events" ${settings.log_voice_events ? 'checked' : ''}/> Voice updates</label>
+        <label class="inline"><input type="checkbox" name="log_moderation_events" ${settings.log_moderation_events ? 'checked' : ''}/> Moderation actions</label>
+        <label class="inline"><input type="checkbox" name="log_automod_events" ${settings.log_automod_events ? 'checked' : ''}/> Automod actions</label>
+        <button class="btn primary" type="submit">Save Logging Settings</button>
+      </form>
+    `, req.user));
+  });
+
+  app.get('/dashboard/:guildId/vc-manager', ensureAuth, async (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
+
+    const settings = getVcManagerSettings(guildId);
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.status(404).send(renderPage('Not Found', '<p>Bot is not in this guild yet.</p>', req.user));
+
+    const channels = await guild.channels.fetch();
+    const voiceOptions = channels
+      .filter((channel) => channel && channel.type === 2)
+      .map((channel) => `<option value="${channel.id}" ${settings.lobby_channel_id === channel.id ? 'selected' : ''}>${escapeHtml(channel.name)}</option>`)
+      .join('');
+    const categoryOptions = channels
+      .filter((channel) => channel && channel.type === 4)
+      .map((channel) => `<option value="${channel.id}" ${settings.category_channel_id === channel.id ? 'selected' : ''}>${escapeHtml(channel.name)}</option>`)
+      .join('');
+
+    res.send(renderPage('VC Manager Setup', `
+      <h1>VC Manager Setup</h1>
+      <a class="btn small" href="/dashboard/${guildId}">Back</a>
+      <form class="card form" method="post" action="/api/guilds/${guildId}/vc-manager">
+        <label class="inline"><input type="checkbox" name="enabled" ${settings.enabled ? 'checked' : ''}/> Enable temporary VC manager</label>
+        <label>Join-to-create voice channel
+          <select name="lobby_channel_id">
+            <option value="">Select voice channel</option>
+            ${voiceOptions}
+          </select>
+        </label>
+        <label>Destination category
+          <select name="category_channel_id">
+            <option value="">Select category</option>
+            ${categoryOptions}
+          </select>
+        </label>
+        <label>Name template (use <code>{user}</code>)<input name="channel_name_template" value="${escapeHtml(settings.channel_name_template || `{user}'s VC`)}" /></label>
+        <button class="btn primary" type="submit">Save VC Manager Settings</button>
+      </form>
+      <p class="muted">Users joining the selected voice channel will be moved into an auto-created temporary voice channel under the selected category.</p>
+    `, req.user));
+  });
+
   app.post('/api/guilds/:guildId/settings', ensureAuth, (req, res) => {
     const { guildId } = req.params;
     if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
@@ -665,6 +746,40 @@ ${adminPanel}
 
     if (wantsJson(req)) return res.json({ ok: true, settings: updated });
     res.redirect(`/dashboard/${guildId}/tickets`);
+  });
+
+  app.post('/api/guilds/:guildId/logs', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    const updated = updateGuildSettings(guildId, {
+      logging_enabled: Boolean(req.body.logging_enabled),
+      moderation_log_channel_id: req.body.moderation_log_channel_id || null,
+      log_member_events: Boolean(req.body.log_member_events),
+      log_message_edits: Boolean(req.body.log_message_edits),
+      log_message_deletes: Boolean(req.body.log_message_deletes),
+      log_voice_events: Boolean(req.body.log_voice_events),
+      log_moderation_events: Boolean(req.body.log_moderation_events),
+      log_automod_events: Boolean(req.body.log_automod_events)
+    });
+
+    if (wantsJson(req)) return res.json({ ok: true, settings: updated });
+    res.redirect(`/dashboard/${guildId}/logs`);
+  });
+
+  app.post('/api/guilds/:guildId/vc-manager', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    const updated = updateVcManagerSettings(guildId, {
+      enabled: Boolean(req.body.enabled),
+      lobby_channel_id: req.body.lobby_channel_id || null,
+      category_channel_id: req.body.category_channel_id || null,
+      channel_name_template: (req.body.channel_name_template || "{user}'s VC").slice(0, 90)
+    });
+
+    if (wantsJson(req)) return res.json({ ok: true, settings: updated });
+    res.redirect(`/dashboard/${guildId}/vc-manager`);
   });
 
   app.post('/api/guilds/:guildId/embed/send', ensureAuth, async (req, res) => {
