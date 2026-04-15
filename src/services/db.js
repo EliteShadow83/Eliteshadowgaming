@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS license_keys (
   status TEXT DEFAULT 'unused',
   max_servers INTEGER DEFAULT 1,
   redeemed_count INTEGER DEFAULT 0,
+  bot_slug TEXT DEFAULT 'default',
   expires_at TEXT,
   created_by TEXT,
   redeemed_by_user_id TEXT,
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS license_keys (
 CREATE TABLE IF NOT EXISTS guild_licenses (
   guild_id TEXT PRIMARY KEY,
   key_id INTEGER NOT NULL,
+  bot_slug TEXT DEFAULT 'default',
   plan TEXT DEFAULT 'premium',
   status TEXT DEFAULT 'active',
   activated_at TEXT DEFAULT CURRENT_TIMESTAMP,

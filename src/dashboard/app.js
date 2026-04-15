@@ -8,6 +8,7 @@ import { getTicketSettings, updateTicketSettings } from '../services/ticketing.j
 import db from '../services/db.js';
 import { applyBotPresence, getBotPresenceSettings, updateBotPresenceSettings } from '../services/botPresence.js';
 import { createManualLicenseKey, getGuildLicense, hasActiveLicense, listRecentLicenseKeys, redeemLicenseKey } from '../services/paywall.js';
+import { getBotVariantBySlug, getBotVariants } from '../services/bots.js';
 
 const scopes = ['identify', 'guilds'];
 
@@ -65,7 +66,7 @@ export function createDashboard({ client }) {
         id: g.id,
         name: g.name,
         inBot: client.guilds.cache.has(g.id),
-        licensed: hasActiveLicense(g.id)
+        licensed: hasActiveLicense(g.id, getBotVariants()[0]?.slug || 'default')
       }));
 
     const cards = manageableGuilds.map((g) => `
@@ -73,7 +74,7 @@ export function createDashboard({ client }) {
         <h3>${escapeHtml(g.name)}</h3>
         <p class="muted">${g.inBot ? 'Connected' : 'Bot not added yet'} • License: ${g.licensed ? 'Active' : 'Required'}</p>
         <div class="actions">
-          ${g.inBot ? `<a class="btn small" href="/dashboard/${g.id}">Manage Server</a>` : `<a class="btn small" href="/dashboard/invite/${g.id}">Invite Bot</a>`}
+          ${g.inBot ? `<a class="btn small" href="/dashboard/${g.id}">Manage Server</a>` : `<a class="btn small" href="/dashboard/invite/${g.id}?bot=${getBotVariants()[0]?.slug || 'default'}">Invite Bot</a>`}
           ${!g.licensed ? `<a class="btn small" href="/dashboard/licenses?guildId=${g.id}">Unlock</a>` : ''}
         </div>
       </article>
@@ -94,15 +95,19 @@ export function createDashboard({ client }) {
       .filter((g) => (BigInt(g.permissions) & 0x20n) === 0x20n)
       .map((g) => ({ id: g.id, name: g.name, licensed: hasActiveLicense(g.id) }));
 
+    const botVariants = getBotVariants();
+    const selectedBot = botVariants.find((b) => b.slug === req.query.bot)?.slug || botVariants[0]?.slug || 'default';
     const selectedGuildId = manageableGuilds.find((g) => g.id === req.query.guildId)?.id || manageableGuilds[0]?.id || '';
     const guildOptions = manageableGuilds.map((g) => `<option value="${g.id}" ${g.id === selectedGuildId ? 'selected' : ''}>${escapeHtml(g.name)} (${g.licensed ? 'licensed' : 'unlicensed'})</option>`).join('');
+    const botOptions = botVariants.map((b) => `<option value="${b.slug}" ${b.slug === selectedBot ? 'selected' : ''}>${escapeHtml(b.name)} (${b.slug})</option>`).join('');
     const canViewSecrets = isAdminUnlocked(req);
     const recentKeys = canViewSecrets
-      ? listRecentLicenseKeys(30).map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan} — usage: ${k.redeemed_count || 0}/${k.max_servers || 1}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('')
+      ? listRecentLicenseKeys(30).map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan} — bot: ${k.bot_slug} — usage: ${k.redeemed_count || 0}/${k.max_servers || 1}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('')
       : '';
     const adminPanel = canViewSecrets ? `
       <form class="card form" method="post" action="/dashboard/licenses/create">
         <h3>Manual Key Creation</h3>
+        <label>Bot<select name="botSlug">${botOptions}</select></label>
         <label>Plan<input name="plan" value="premium" /></label>
         <label>Max servers<input name="maxServers" type="number" min="1" value="1" /></label>
         <label>Expires at (optional, ISO date)<input name="expiresAt" placeholder="2026-12-31T00:00:00Z" /></label>
@@ -116,6 +121,7 @@ export function createDashboard({ client }) {
       <div class="grid two">
         <form class="card form" method="post" action="/dashboard/licenses/redeem">
           <h3>Redeem Key for Server</h3>
+          <label>Bot<select name="botSlug" required>${botOptions}</select></label>
           <label>Server<select name="guildId" required>${guildOptions}</select></label>
           <label>License key<input name="licenseKey" required /></label>
           <p class="muted">Keys can be valid for multiple servers depending on key limits.</p>
@@ -135,9 +141,10 @@ ${adminPanel}
   app.post('/dashboard/licenses/redeem', ensureAuth, (req, res) => {
     try {
       const guildId = req.body.guildId;
+      const botSlug = req.body.botSlug || 'default';
       if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
-      redeemLicenseKey({ licenseKey: req.body.licenseKey || '', guildId, userId: req.user.id });
-      res.redirect(`/dashboard/licenses?guildId=${guildId}`);
+      redeemLicenseKey({ licenseKey: req.body.licenseKey || '', guildId, userId: req.user.id, botSlug });
+      res.redirect(`/dashboard/licenses?guildId=${guildId}&bot=${botSlug}`);
     } catch (err) {
       res.status(400).send(renderPage('Redeem Failed', `<p>${escapeHtml(err.message)}</p><p><a class="btn" href="/dashboard/licenses">Back</a></p>`, req.user));
     }
@@ -150,23 +157,26 @@ ${adminPanel}
 
     const created = createManualLicenseKey({
       plan: req.body.plan || 'premium',
+      botSlug: req.body.botSlug || 'default',
       maxServers: Number(req.body.maxServers || 1),
       expiresAt: req.body.expiresAt || null,
       createdBy: req.user.id
     });
 
-    res.send(renderPage('Key Created', `<h1>Manual License Key Created</h1><p><code>${created.license_key}</code></p><p>Valid for <strong>${created.max_servers}</strong> server(s).</p><p><a class=\"btn\" href=\"/dashboard/licenses\">Back to license manager</a></p>`, req.user));
+    res.send(renderPage('Key Created', `<h1>Manual License Key Created</h1><p><code>${created.license_key}</code></p><p>Bot: <strong>${created.bot_slug}</strong></p><p>Valid for <strong>${created.max_servers}</strong> server(s).</p><p><a class=\"btn\" href=\"/dashboard/licenses\">Back to license manager</a></p>`, req.user));
   });
 
   app.get('/dashboard/invite/:guildId', ensureAuth, (req, res) => {
     const { guildId } = req.params;
+    const botSlug = req.query.bot || getBotVariants()[0]?.slug || 'default';
+    const bot = getBotVariantBySlug(botSlug);
     if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
 
-    if (!hasActiveLicense(guildId)) {
-      return res.redirect(`/dashboard/licenses?guildId=${guildId}`);
+    if (!hasActiveLicense(guildId, botSlug)) {
+      return res.redirect(`/dashboard/licenses?guildId=${guildId}&bot=${botSlug}`);
     }
 
-    const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&permissions=${process.env.DISCORD_BOT_INVITE_PERMISSIONS || '8'}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+    const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${bot.clientId}&permissions=${bot.permissions || '8'}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
     res.redirect(inviteUrl);
   });
 
@@ -336,7 +346,7 @@ ${adminPanel}
     if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
 
     const settings = getGuildSettings(guildId);
-    const license = getGuildLicense(guildId);
+    const license = getGuildLicense(guildId, getBotVariants()[0]?.slug || 'default');
     res.send(renderPage('Guild Settings', `
       <h1>Guild Settings</h1>
       <p class="muted">License: ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
