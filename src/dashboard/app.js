@@ -11,7 +11,7 @@ import { applyBotVariantPresence, createBotVariant, getBotVariantBySlug, getBotV
 
 const scopes = ['identify', 'guilds'];
 
-export function createDashboard({ client }) {
+export function createDashboard({ client, botRuntime }) {
   const app = express();
 
   app.use(express.urlencoded({ extended: true }));
@@ -175,7 +175,7 @@ ${adminPanel}
       return res.redirect(`/dashboard/licenses?guildId=${guildId}&bot=${botSlug}`);
     }
 
-    const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${bot.clientId}&permissions=${bot.permissions || '8'}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+    const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${bot.client_id}&permissions=${bot.permissions || '8'}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
     res.redirect(inviteUrl);
   });
 
@@ -185,17 +185,27 @@ ${adminPanel}
     }
 
     const bots = getBotVariants();
+    const runningSet = new Set(botRuntime?.listRunningSlugs?.() || []);
     const cards = bots.map((b) => `
-      <form class=\"card form\" method=\"post\" action=\"/dashboard/bots/${b.slug}\">
-        <h3>${escapeHtml(b.name)} (${b.slug})</h3>
-        <label>Name<input name=\"name\" value=\"${escapeHtml(b.name)}\" /></label>
-        <label>Client ID<input name=\"clientId\" value=\"${escapeHtml(b.client_id)}\" /></label>
-        <label>Permissions<input name=\"permissions\" value=\"${escapeHtml(b.permissions || '8')}\" /></label>
-        <label>Status<input name=\"status\" value=\"${escapeHtml(b.status || 'online')}\" /></label>
-        <label>Activity Type<input name=\"activityType\" value=\"${escapeHtml(b.activity_type || 'Playing')}\" /></label>
-        <label>Activity Name<input name=\"activityName\" value=\"${escapeHtml(b.activity_name || '')}\" /></label>
-        <button class=\"btn\" type=\"submit\">Save Bot</button>
-      </form>`).join('');
+      <div class=\"card\">
+        <form class=\"form\" method=\"post\" action=\"/dashboard/bots/${b.slug}\">
+          <h3>${escapeHtml(b.name)} (${b.slug})</h3>
+          <p class=\"muted\">Runtime: ${runningSet.has(b.slug) ? 'Running' : 'Stopped'}</p>
+          <label>Name<input name=\"name\" value=\"${escapeHtml(b.name)}\" /></label>
+          <label>Client ID<input name=\"clientId\" value=\"${escapeHtml(b.client_id)}\" /></label>
+          <label>Client Secret<input name=\"clientSecret\" value=\"${escapeHtml(b.client_secret || '')}\" /></label>
+          <label>Bot Token<input name=\"botToken\" value=\"${escapeHtml(b.bot_token || '')}\" /></label>
+          <label>Permissions<input name=\"permissions\" value=\"${escapeHtml(b.permissions || '8')}\" /></label>
+          <label>Status<input name=\"status\" value=\"${escapeHtml(b.status || 'online')}\" /></label>
+          <label>Activity Type<input name=\"activityType\" value=\"${escapeHtml(b.activity_type || 'Playing')}\" /></label>
+          <label>Activity Name<input name=\"activityName\" value=\"${escapeHtml(b.activity_name || '')}\" /></label>
+          <button class=\"btn\" type=\"submit\">Save Bot</button>
+        </form>
+        <div class=\"actions\">
+          <form method=\"post\" action=\"/dashboard/bots/${b.slug}/start\"><button class=\"btn\" type=\"submit\">Start</button></form>
+          <form method=\"post\" action=\"/dashboard/bots/${b.slug}/stop\"><button class=\"btn\" type=\"submit\">Stop</button></form>
+        </div>
+      </div>`).join('');
 
     res.send(renderPage('Bot Manager', `
       <h1>Bot Manager</h1>
@@ -231,6 +241,33 @@ ${adminPanel}
 
     updateBotVariant(req.params.slug, req.body);
     res.redirect('/dashboard/bots');
+  });
+
+  app.post('/dashboard/bots/:slug/start', ensureAuth, async (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+    }
+
+    try {
+      const bot = getBotVariantBySlug(req.params.slug);
+      await botRuntime.startVariant(bot);
+      res.redirect('/dashboard/bots');
+    } catch (err) {
+      res.status(400).send(renderPage('Start Failed', `<p>${escapeHtml(err.message)}</p><p><a class="btn" href="/dashboard/bots">Back</a></p>`, req.user));
+    }
+  });
+
+  app.post('/dashboard/bots/:slug/stop', ensureAuth, async (req, res) => {
+    if (!isAdminUnlocked(req)) {
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+    }
+
+    try {
+      await botRuntime.stopVariant(req.params.slug);
+      res.redirect('/dashboard/bots');
+    } catch (err) {
+      res.status(400).send(renderPage('Stop Failed', `<p>${escapeHtml(err.message)}</p><p><a class="btn" href="/dashboard/bots">Back</a></p>`, req.user));
+    }
   });
 
   app.post('/api/guilds/:guildId/bot-presence', ensureAuth, (req, res) => {

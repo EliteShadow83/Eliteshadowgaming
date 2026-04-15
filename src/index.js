@@ -10,18 +10,47 @@ for (const key of required) {
   }
 }
 
+const runningVariantClients = new Map();
+
 const client = createBotClient();
-const app = createDashboard({ client });
-
-const port = Number(process.env.PORT || 3000);
-
-app.listen(port, () => {
-  console.log(`Dashboard available on http://localhost:${port}`);
-});
+const runningSlug = process.env.RUNNING_BOT_SLUG || 'default';
 
 client.once('ready', () => {
-  const runningSlug = process.env.RUNNING_BOT_SLUG || 'default';
-  applyBotVariantPresence(client, getBotVariantBySlug(runningSlug));
+  const variant = getBotVariantBySlug(runningSlug);
+  applyBotVariantPresence(client, variant);
+  runningVariantClients.set(runningSlug, client);
+});
+
+const botRuntime = {
+  listRunningSlugs() {
+    return [...runningVariantClients.keys()];
+  },
+  async startVariant(variant) {
+    if (!variant?.slug) throw new Error('Variant slug is required.');
+    if (runningVariantClients.has(variant.slug)) return;
+    if (!variant.bot_token) throw new Error('This variant has no bot token configured.');
+
+    const bot = createBotClient();
+    await bot.login(variant.bot_token);
+    bot.once('ready', () => {
+      applyBotVariantPresence(bot, variant);
+    });
+    runningVariantClients.set(variant.slug, bot);
+  },
+  async stopVariant(slug) {
+    if (slug === runningSlug) throw new Error('Cannot stop the primary running bot from dashboard.');
+    const bot = runningVariantClients.get(slug);
+    if (!bot) return;
+    await bot.destroy();
+    runningVariantClients.delete(slug);
+  }
+};
+
+const app = createDashboard({ client, botRuntime });
+
+const port = Number(process.env.PORT || 3000);
+app.listen(port, () => {
+  console.log(`Dashboard available on http://localhost:${port}`);
 });
 
 client.login(process.env.DISCORD_TOKEN);

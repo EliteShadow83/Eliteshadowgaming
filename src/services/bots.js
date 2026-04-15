@@ -13,6 +13,8 @@ function envFallbackVariants() {
             slug: String(b.slug),
             name: String(b.name || b.slug),
             client_id: String(b.clientId),
+            client_secret: String(b.clientSecret || ''),
+            bot_token: String(b.botToken || ''),
             permissions: String(b.permissions || process.env.DISCORD_BOT_INVITE_PERMISSIONS || '8'),
             status: String(b.status || 'online'),
             activity_type: String(b.activityType || 'Playing'),
@@ -28,6 +30,8 @@ function envFallbackVariants() {
     slug: 'default',
     name: process.env.BOT_DISPLAY_NAME || 'Elite Discord Suite',
     client_id: process.env.DISCORD_CLIENT_ID,
+    client_secret: process.env.DISCORD_CLIENT_SECRET || '',
+    bot_token: process.env.DISCORD_TOKEN || '',
     permissions: process.env.DISCORD_BOT_INVITE_PERMISSIONS || '8',
     status: 'online',
     activity_type: 'Playing',
@@ -41,11 +45,11 @@ function ensureSeeded() {
 
   const fallback = envFallbackVariants();
   const stmt = db.prepare(`INSERT INTO bot_variants
-    (slug, name, client_id, permissions, status, activity_type, activity_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    (slug, name, client_id, client_secret, bot_token, permissions, status, activity_type, activity_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
   for (const bot of fallback) {
-    stmt.run(bot.slug, bot.name, bot.client_id, bot.permissions, bot.status, bot.activity_type, bot.activity_name);
+    stmt.run(bot.slug, bot.name, bot.client_id, bot.client_secret || '', bot.bot_token || '', bot.permissions, bot.status, bot.activity_type, bot.activity_name);
   }
 }
 
@@ -59,13 +63,15 @@ export function getBotVariantBySlug(slug) {
   return db.prepare('SELECT * FROM bot_variants WHERE slug = ?').get(slug) || getBotVariants()[0];
 }
 
-export function createBotVariant({ slug, name, clientId, permissions = '8', status = 'online', activityType = 'Playing', activityName = '' }) {
+export function createBotVariant({ slug, name, clientId, clientSecret = '', botToken = '', permissions = '8', status = 'online', activityType = 'Playing', activityName = '' }) {
   db.prepare(`INSERT INTO bot_variants
-    (slug, name, client_id, permissions, status, activity_type, activity_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    (slug, name, client_id, client_secret, bot_token, permissions, status, activity_type, activity_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     slug,
     name,
     clientId,
+    clientSecret,
+    botToken,
     permissions,
     status,
     activityType,
@@ -81,6 +87,8 @@ export function updateBotVariant(slug, patch) {
     ...current,
     ...patch,
     client_id: patch.clientId ?? patch.client_id ?? current.client_id,
+    client_secret: patch.clientSecret ?? patch.client_secret ?? current.client_secret,
+    bot_token: patch.botToken ?? patch.bot_token ?? current.bot_token,
     activity_type: patch.activityType ?? patch.activity_type ?? current.activity_type,
     activity_name: patch.activityName ?? patch.activity_name ?? current.activity_name
   };
@@ -88,6 +96,8 @@ export function updateBotVariant(slug, patch) {
   db.prepare(`UPDATE bot_variants SET
     name = ?,
     client_id = ?,
+    client_secret = ?,
+    bot_token = ?,
     permissions = ?,
     status = ?,
     activity_type = ?,
@@ -96,6 +106,8 @@ export function updateBotVariant(slug, patch) {
     WHERE slug = ?`).run(
     next.name,
     next.client_id,
+    next.client_secret,
+    next.bot_token,
     next.permissions,
     next.status,
     next.activity_type,

@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS bot_variants (
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   client_id TEXT NOT NULL,
+  client_secret TEXT,
+  bot_token TEXT,
   permissions TEXT DEFAULT '8',
   status TEXT DEFAULT 'online',
   activity_type TEXT DEFAULT 'Playing',
