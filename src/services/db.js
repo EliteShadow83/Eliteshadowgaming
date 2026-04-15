@@ -55,6 +55,28 @@ CREATE TABLE IF NOT EXISTS leveling (
 );
 
 
+CREATE TABLE IF NOT EXISTS license_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  license_key TEXT NOT NULL UNIQUE,
+  plan TEXT DEFAULT 'premium',
+  status TEXT DEFAULT 'unused',
+  expires_at TEXT,
+  created_by TEXT,
+  redeemed_by_user_id TEXT,
+  redeemed_guild_id TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  redeemed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS guild_licenses (
+  guild_id TEXT PRIMARY KEY,
+  key_id INTEGER NOT NULL,
+  plan TEXT DEFAULT 'premium',
+  status TEXT DEFAULT 'active',
+  activated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS bot_presence_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   status TEXT DEFAULT 'online',

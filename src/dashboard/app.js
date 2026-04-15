@@ -7,6 +7,7 @@ import { addAutomodTerm, getGuildSettings, listAutomodTerms, removeAutomodTerm, 
 import { getTicketSettings, updateTicketSettings } from '../services/ticketing.js';
 import db from '../services/db.js';
 import { applyBotPresence, getBotPresenceSettings, updateBotPresenceSettings } from '../services/botPresence.js';
+import { createManualLicenseKey, getGuildLicense, hasActiveLicense, listRecentLicenseKeys, redeemLicenseKey } from '../services/paywall.js';
 
 const scopes = ['identify', 'guilds'];
 
@@ -37,7 +38,7 @@ export function createDashboard({ client }) {
         <p>Premium-style moderation, automod, leveling, ticketing, and embeds from one dashboard.</p>
         <div class="actions">
           <a class="btn primary" href="/auth/discord">Login with Discord</a>
-          <a class="btn" href="${inviteUrl}">Add Bot to Server</a>
+          <a class="btn" href="/dashboard/licenses">Manage License Keys</a>
         </div>
       </div>
     `));
@@ -52,25 +53,105 @@ export function createDashboard({ client }) {
       .map((g) => ({
         id: g.id,
         name: g.name,
-        inBot: client.guilds.cache.has(g.id)
+        inBot: client.guilds.cache.has(g.id),
+        licensed: hasActiveLicense(g.id)
       }));
 
     const cards = manageableGuilds.map((g) => `
       <article class="card">
         <h3>${escapeHtml(g.name)}</h3>
-        <p class="muted">${g.inBot ? 'Connected' : 'Bot not added yet'}</p>
-        ${g.inBot ? `<a class="btn small" href="/dashboard/${g.id}">Manage Server</a>` : '<p class="muted">Invite the bot first</p>'}
+        <p class="muted">${g.inBot ? 'Connected' : 'Bot not added yet'} • License: ${g.licensed ? 'Active' : 'Required'}</p>
+        <div class="actions">
+          ${g.inBot ? `<a class="btn small" href="/dashboard/${g.id}">Manage Server</a>` : `<a class="btn small" href="/dashboard/invite/${g.id}">Invite Bot</a>`}
+          ${!g.licensed ? `<a class="btn small" href="/dashboard/licenses?guildId=${g.id}">Unlock</a>` : ''}
+        </div>
       </article>
     `).join('') || '<p class="muted">No manageable servers found.</p>';
 
     res.send(renderPage('Your Servers', `
       <h1>Your Servers</h1>
-      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a> <a class="btn small" href="/dashboard/bot">Bot Status Settings</a></p>
+      <p><a class="btn small" href="/dashboard/database">Open Database Manager</a> <a class="btn small" href="/dashboard/bot">Bot Status Settings</a> <a class="btn small" href="/dashboard/licenses">License Keys</a></p>
       <div class="grid">${cards}</div>
     `, req.user));
   });
 
 
+
+
+  app.get('/dashboard/licenses', ensureAuth, (req, res) => {
+    const manageableGuilds = req.user.guilds
+      .filter((g) => (BigInt(g.permissions) & 0x20n) === 0x20n)
+      .map((g) => ({ id: g.id, name: g.name, licensed: hasActiveLicense(g.id) }));
+
+    const selectedGuildId = manageableGuilds.find((g) => g.id === req.query.guildId)?.id || manageableGuilds[0]?.id || '';
+    const guildOptions = manageableGuilds.map((g) => `<option value="${g.id}" ${g.id === selectedGuildId ? 'selected' : ''}>${escapeHtml(g.name)} (${g.licensed ? 'licensed' : 'unlicensed'})</option>`).join('');
+    const recentKeys = listRecentLicenseKeys(30)
+      .map((k) => `<li><code>${k.license_key}</code> — ${k.status} — plan: ${k.plan}${k.expires_at ? ` — expires ${k.expires_at}` : ''}</li>`).join('');
+
+    res.send(renderPage('License Paywall', `
+      <h1>License Paywall</h1>
+      <p class="muted">A valid license key is required before inviting the bot to a server.</p>
+
+      <div class="grid two">
+        <form class="card form" method="post" action="/dashboard/licenses/redeem">
+          <h3>Redeem Key for Server</h3>
+          <label>Server<select name="guildId" required>${guildOptions}</select></label>
+          <label>License key<input name="licenseKey" required /></label>
+          <button class="btn primary" type="submit">Redeem Key</button>
+        </form>
+
+        <form class="card form" method="post" action="/dashboard/licenses/create">
+          <h3>Manual Key Creation</h3>
+          <label>Admin secret<input name="adminSecret" type="password" required /></label>
+          <label>Plan<input name="plan" value="premium" /></label>
+          <label>Expires at (optional, ISO date)<input name="expiresAt" placeholder="2026-12-31T00:00:00Z" /></label>
+          <button class="btn" type="submit">Create Manual Key</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Recent Keys</h3>
+        <ul>${recentKeys || '<li>No keys yet</li>'}</ul>
+      </div>
+    `, req.user));
+  });
+
+  app.post('/dashboard/licenses/redeem', ensureAuth, (req, res) => {
+    try {
+      const guildId = req.body.guildId;
+      if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
+      redeemLicenseKey({ licenseKey: req.body.licenseKey || '', guildId, userId: req.user.id });
+      res.redirect(`/dashboard/licenses?guildId=${guildId}`);
+    } catch (err) {
+      res.status(400).send(renderPage('Redeem Failed', `<p>${escapeHtml(err.message)}</p><p><a class="btn" href="/dashboard/licenses">Back</a></p>`, req.user));
+    }
+  });
+
+  app.post('/dashboard/licenses/create', ensureAuth, (req, res) => {
+    if (!process.env.DASHBOARD_ADMIN_SECRET || req.body.adminSecret !== process.env.DASHBOARD_ADMIN_SECRET) {
+      return res.status(403).send(renderPage('Forbidden', '<p>Invalid admin secret.</p>', req.user));
+    }
+
+    const created = createManualLicenseKey({
+      plan: req.body.plan || 'premium',
+      expiresAt: req.body.expiresAt || null,
+      createdBy: req.user.id
+    });
+
+    res.send(renderPage('Key Created', `<h1>Manual License Key Created</h1><p><code>${created.license_key}</code></p><p><a class="btn" href="/dashboard/licenses">Back to license manager</a></p>`, req.user));
+  });
+
+  app.get('/dashboard/invite/:guildId', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
+
+    if (!hasActiveLicense(guildId)) {
+      return res.redirect(`/dashboard/licenses?guildId=${guildId}`);
+    }
+
+    const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&permissions=${process.env.DISCORD_BOT_INVITE_PERMISSIONS || '8'}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`;
+    res.redirect(inviteUrl);
+  });
 
   app.get('/dashboard/bot', ensureAuth, (req, res) => {
     const settings = getBotPresenceSettings();
@@ -208,8 +289,10 @@ export function createDashboard({ client }) {
     if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
 
     const settings = getGuildSettings(guildId);
+    const license = getGuildLicense(guildId);
     res.send(renderPage('Guild Settings', `
       <h1>Guild Settings</h1>
+      <p class="muted">License: ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
       <div class="tabs">
         <a class="btn small" href="/dashboard/${guildId}/automod">Automod Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/embed">Embed Creator</a>
@@ -482,6 +565,7 @@ function renderPage(title, body, user) {
       <div class="top">
         <a class="logo" href="/dashboard">⚡ Elite Discord Suite</a>
         <a class="btn small" href="/dashboard/bot">Bot</a>
+        <a class="btn small" href="/dashboard/licenses">Licenses</a>
         <a class="btn small" href="/dashboard/database">Database</a>
         <span class="muted">${user ? `Logged in as ${escapeHtml(user.username || user.id)}` : 'Discord Dashboard'}</span>
       </div>
