@@ -39,7 +39,7 @@ export const vcManagerCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -48,7 +48,7 @@ export const vcManagerCommand = {
     if (action === 'view') {
       const settings = getVcManagerSettings(interaction.guildId);
       await interaction.reply({
-        ephemeral: true,
+        flags: 64,
         content: [
           `VC Manager status: **${settings.enabled ? 'Enabled' : 'Disabled'}**`,
           `Create channel: ${settings.lobby_channel_id ? `<#${settings.lobby_channel_id}>` : 'Not set'}`,
@@ -61,7 +61,7 @@ export const vcManagerCommand = {
 
     if (action === 'disable') {
       const settings = updateVcManagerSettings(interaction.guildId, { enabled: 0 });
-      await interaction.reply({ content: `VC Manager is now **${settings.enabled ? 'Enabled' : 'Disabled'}**.`, ephemeral: true });
+      await interaction.reply({ content: `VC Manager is now **${settings.enabled ? 'Enabled' : 'Disabled'}**.`, flags: 64 });
       return;
     }
 
@@ -70,12 +70,12 @@ export const vcManagerCommand = {
     const nameTemplate = interaction.options.getString('name_template');
 
     if (createChannel && createChannel.type !== ChannelType.GuildVoice) {
-      await interaction.reply({ content: 'The create channel must be a voice channel.', ephemeral: true });
+      await interaction.reply({ content: 'The create channel must be a voice channel.', flags: 64 });
       return;
     }
 
     if (category && category.type !== ChannelType.GuildCategory) {
-      await interaction.reply({ content: 'The category must be a category channel.', ephemeral: true });
+      await interaction.reply({ content: 'The category must be a category channel.', flags: 64 });
       return;
     }
 
@@ -90,14 +90,14 @@ export const vcManagerCommand = {
     if (!next.lobby_channel_id || !next.category_channel_id) {
       await interaction.reply({
         content: 'VC Manager was enabled, but setup is incomplete. Provide both `create_channel` and `category` in `/vcmanager action:configure`.',
-        ephemeral: true
+        flags: 64
       });
       return;
     }
 
     await interaction.reply({
       content: `VC Manager enabled. Users joining <#${next.lobby_channel_id}> will get a temporary VC in <#${next.category_channel_id}>.`,
-      ephemeral: true
+      flags: 64
     });
   }
 };

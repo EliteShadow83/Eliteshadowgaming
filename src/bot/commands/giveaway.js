@@ -21,7 +21,7 @@ export const giveawayCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -31,12 +31,12 @@ export const giveawayCommand = {
     const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
 
     if (!targetChannel?.isTextBased()) {
-      await interaction.reply({ content: 'Please provide a text channel.', ephemeral: true });
+      await interaction.reply({ content: 'Please provide a text channel.', flags: 64 });
       return;
     }
 
     if (durationMinutes < 1 || durationMinutes > 10080) {
-      await interaction.reply({ content: 'Duration must be between 1 and 10080 minutes (7 days).', ephemeral: true });
+      await interaction.reply({ content: 'Duration must be between 1 and 10080 minutes (7 days).', flags: 64 });
       return;
     }
 
@@ -92,7 +92,7 @@ export const giveawayCommand = {
 
     await interaction.reply({
       content: `Giveaway started in ${targetChannel} for **${prize}**. Ends in ${formatDuration(durationMinutes)}.`,
-      ephemeral: true
+      flags: 64
     });
   }
 };

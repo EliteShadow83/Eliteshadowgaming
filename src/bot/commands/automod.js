@@ -35,7 +35,7 @@ export const automodCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -45,7 +45,7 @@ export const automodCommand = {
       const settings = getGuildSettings(interaction.guildId);
       const terms = listAutomodTerms(interaction.guildId);
       await interaction.reply({
-        ephemeral: true,
+        flags: 64,
         content: `Automod settings:\n- Enabled: ${Boolean(settings.automod_enabled)}\n- Block links: ${Boolean(settings.block_links)}\n- Block invites: ${Boolean(settings.block_invites)}\n- Max mentions: ${settings.max_mentions}\n- Tempmute on violations: ${Boolean(settings.automod_mute_enabled)}\n- Mute threshold: ${settings.automod_mute_threshold} removals\n- Mute window: ${settings.automod_mute_window_minutes} minutes\n- Mute duration: ${settings.automod_mute_duration_minutes} minutes\n- Custom words: ${terms.length ? terms.join(', ') : 'None'}`
       });
       return;
@@ -54,22 +54,22 @@ export const automodCommand = {
     if (action === 'add-word') {
       const word = interaction.options.getString('word');
       if (!word) {
-        await interaction.reply({ content: 'Provide a word to add.', ephemeral: true });
+        await interaction.reply({ content: 'Provide a word to add.', flags: 64 });
         return;
       }
       const terms = addAutomodTerm(interaction.guildId, word);
-      await interaction.reply({ content: `Added word. Current list: ${terms.join(', ')}`, ephemeral: true });
+      await interaction.reply({ content: `Added word. Current list: ${terms.join(', ')}`, flags: 64 });
       return;
     }
 
     if (action === 'remove-word') {
       const word = interaction.options.getString('word');
       if (!word) {
-        await interaction.reply({ content: 'Provide a word to remove.', ephemeral: true });
+        await interaction.reply({ content: 'Provide a word to remove.', flags: 64 });
         return;
       }
       const terms = removeAutomodTerm(interaction.guildId, word);
-      await interaction.reply({ content: `Removed word. Current list: ${terms.length ? terms.join(', ') : 'None'}`, ephemeral: true });
+      await interaction.reply({ content: `Removed word. Current list: ${terms.length ? terms.join(', ') : 'None'}`, flags: 64 });
       return;
     }
 
@@ -92,7 +92,7 @@ export const automodCommand = {
     });
 
     await interaction.reply({
-      ephemeral: true,
+      flags: 64,
       content: `Updated automod config: block_links=${Boolean(updated.block_links)}, block_invites=${Boolean(updated.block_invites)}, max_mentions=${updated.max_mentions}, tempmute=${Boolean(updated.automod_mute_enabled)} (${updated.automod_mute_threshold} removals/${updated.automod_mute_window_minutes}m => ${updated.automod_mute_duration_minutes}m mute)`
     });
   }

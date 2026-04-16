@@ -27,7 +27,7 @@ export const configCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -38,7 +38,7 @@ export const configCommand = {
     if (prefix === null && automod === null && leveling === null) {
       const settings = getGuildSettings(interaction.guildId);
       await interaction.reply({
-        ephemeral: true,
+        flags: 64,
         content: `Current settings:\n- Prefix: ${settings.prefix}\n- Automod: ${Boolean(settings.automod_enabled)}\n- Leveling: ${Boolean(settings.leveling_enabled)}`
       });
       return;
@@ -52,7 +52,7 @@ export const configCommand = {
 
     await interaction.reply({
       content: `Updated settings for **${interaction.guild.name}**. Prefix: ${updated.prefix}, Automod: ${Boolean(updated.automod_enabled)}, Leveling: ${Boolean(updated.leveling_enabled)}`,
-      ephemeral: true
+      flags: 64
     });
   }
 };

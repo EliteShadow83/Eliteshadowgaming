@@ -58,7 +58,7 @@ export function createBotClient() {
       await command.execute(interaction);
     } catch (err) {
       console.error(err);
-      const payload = { content: 'Something went wrong running that command.', ephemeral: true };
+      const payload = { content: 'Something went wrong running that command.', flags: 64 };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(payload);
       } else {

@@ -16,11 +16,11 @@ const EPHEMERAL_FLAG = 64;
 export async function handleTicketButton(interaction) {
   if (!interaction.guild) return false;
 
-  if (interaction.customId !== OPEN_ID && interaction.customId !== CLAIM_ID && interaction.customId !== CLOSE_ID) {
+  if (![OPEN_ID, CLAIM_ID, CLOSE_ID, 'ticket_open', 'ticket_claim', 'ticket_close'].includes(interaction.customId)) {
     return false;
   }
 
-  if (interaction.customId === OPEN_ID) {
+  if (interaction.customId === OPEN_ID || interaction.customId === 'ticket_open') {
     const existing = getOpenTicketForUser(interaction.guildId, interaction.user.id);
     if (existing) {
       await interaction.reply({ content: `You already have an open ticket: <#${existing.channel_id}>`, flags: EPHEMERAL_FLAG });
@@ -52,7 +52,8 @@ export async function handleTicketButton(interaction) {
     return true;
   }
 
-  if (interaction.customId === CLAIM_ID) {
+  if (interaction.customId === CLAIM_ID || interaction.customId === 'ticket_claim') {
+    console.log(`[tickets] claim click guild=${interaction.guildId} channel=${interaction.channelId} user=${interaction.user.id}`);
     const ticket = getTicketByChannel(interaction.channelId);
     if (!ticket || ticket.status !== 'open') {
       await interaction.reply({ content: 'This is not an open ticket channel.', flags: EPHEMERAL_FLAG });
@@ -61,7 +62,8 @@ export async function handleTicketButton(interaction) {
 
     const settings = getTicketSettings(interaction.guildId);
     const hasSupportRole = settings.support_role_id && interaction.member?.roles?.cache?.has(settings.support_role_id);
-    const canClaim = hasSupportRole || interaction.memberPermissions?.has('ManageChannels');
+    const isOwner = ticket.owner_user_id === interaction.user.id;
+    const canClaim = hasSupportRole || interaction.memberPermissions?.has('ManageChannels') || isOwner;
 
     if (!canClaim) {
       await interaction.reply({ content: 'Only support staff can claim tickets.', flags: EPHEMERAL_FLAG });
@@ -78,6 +80,7 @@ export async function handleTicketButton(interaction) {
     return true;
   }
 
+  console.log(`[tickets] close click guild=${interaction.guildId} channel=${interaction.channelId} user=${interaction.user.id}`);
   const ticket = getTicketByChannel(interaction.channelId);
   if (!ticket || ticket.status !== 'open') {
     await interaction.reply({ content: 'This is not an open ticket channel.', flags: EPHEMERAL_FLAG });

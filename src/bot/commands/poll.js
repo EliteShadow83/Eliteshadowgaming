@@ -17,7 +17,7 @@ export const pollCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -27,7 +27,7 @@ export const pollCommand = {
       .filter(Boolean);
 
     if (options.length < 2) {
-      await interaction.reply({ content: 'A poll needs at least 2 options.', ephemeral: true });
+      await interaction.reply({ content: 'A poll needs at least 2 options.', flags: 64 });
       return;
     }
 

@@ -27,7 +27,7 @@ export const logsCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -36,7 +36,7 @@ export const logsCommand = {
     if (action === 'view') {
       const settings = getGuildSettings(interaction.guildId);
       await interaction.reply({
-        ephemeral: true,
+        flags: 64,
         content: [
           `Logging: **${settings.logging_enabled ? 'Enabled' : 'Disabled'}**`,
           `Channel: ${settings.moderation_log_channel_id ? `<#${settings.moderation_log_channel_id}>` : 'Not set'}`,
@@ -53,7 +53,7 @@ export const logsCommand = {
 
     if (action === 'disable') {
       updateGuildSettings(interaction.guildId, { logging_enabled: 0 });
-      await interaction.reply({ content: 'Logging has been disabled for this server.', ephemeral: true });
+      await interaction.reply({ content: 'Logging has been disabled for this server.', flags: 64 });
       return;
     }
 
@@ -66,7 +66,7 @@ export const logsCommand = {
     const automodEvents = interaction.options.getBoolean('automod_events');
 
     if (channel && !channel.isTextBased()) {
-      await interaction.reply({ content: 'The log channel must be text-based.', ephemeral: true });
+      await interaction.reply({ content: 'The log channel must be text-based.', flags: 64 });
       return;
     }
 
@@ -85,14 +85,14 @@ export const logsCommand = {
     if (!updated.moderation_log_channel_id) {
       await interaction.reply({
         content: 'Logging is enabled but no log channel is set. Re-run with the `channel` option.',
-        ephemeral: true
+        flags: 64
       });
       return;
     }
 
     await interaction.reply({
       content: `Logging configured. Updates will be sent to <#${updated.moderation_log_channel_id}>.`,
-      ephemeral: true
+      flags: 64
     });
   }
 };

@@ -61,18 +61,18 @@ export async function handleGiveawayButton(interaction) {
 
   const giveawayId = Number(giveawayIdRaw);
   if (!Number.isFinite(giveawayId)) {
-    await interaction.reply({ content: 'This giveaway button is invalid.', ephemeral: true }).catch(() => null);
+    await interaction.reply({ content: 'This giveaway button is invalid.', flags: 64 }).catch(() => null);
     return true;
   }
 
   const giveaway = getActiveGiveawayByMessageId(interaction.message.id);
   if (!giveaway || giveaway.id !== giveawayId) {
-    await interaction.reply({ content: 'This giveaway is no longer active.', ephemeral: true }).catch(() => null);
+    await interaction.reply({ content: 'This giveaway is no longer active.', flags: 64 }).catch(() => null);
     return true;
   }
 
   addGiveawayEntry(giveaway.id, interaction.user.id);
-  await interaction.reply({ content: `✅ You entered **${giveaway.prize}**. Good luck!`, ephemeral: true }).catch(() => null);
+  await interaction.reply({ content: `✅ You entered **${giveaway.prize}**. Good luck!`, flags: 64 }).catch(() => null);
   return true;
 }
 

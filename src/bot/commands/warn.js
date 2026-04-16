@@ -12,7 +12,7 @@ export const warnCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ModerateMembers')) {
-      await interaction.reply({ content: 'You need Moderate Members permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Moderate Members permission.', flags: 64 });
       return;
     }
 
