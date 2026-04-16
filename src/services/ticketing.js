@@ -64,15 +64,23 @@ export async function createTicketChannel({ guild, user }) {
   if (duplicate) throw new Error('You already have an open ticket.');
 
   const channelName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 18) || 'user'}`;
+  const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+  const category = settings.category_channel_id
+    ? await guild.channels.fetch(settings.category_channel_id).catch(() => null)
+    : null;
+  const supportRole = settings.support_role_id
+    ? await guild.roles.fetch(settings.support_role_id).catch(() => null)
+    : null;
 
   const ticketChannel = await guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
-    parent: settings.category_channel_id || null,
+    parent: category?.id || null,
     permissionOverwrites: [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+      ...(botMember ? [{ id: botMember.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels] }] : []),
       { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-      ...(settings.support_role_id ? [{ id: settings.support_role_id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : [])
+      ...(supportRole ? [{ id: supportRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : [])
     ]
   });
 
