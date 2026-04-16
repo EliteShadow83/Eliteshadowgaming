@@ -170,6 +170,29 @@ CREATE TABLE IF NOT EXISTS tickets (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   closed_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS giveaways (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  message_id TEXT,
+  host_user_id TEXT NOT NULL,
+  prize TEXT NOT NULL,
+  winner_count INTEGER DEFAULT 1,
+  ends_at TEXT NOT NULL,
+  status TEXT DEFAULT 'active',
+  winners_csv TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  ended_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS giveaway_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  giveaway_id INTEGER NOT NULL,
+  user_id TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(giveaway_id, user_id)
+);
 `);
 
 export default db;

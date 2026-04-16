@@ -10,9 +10,10 @@ import { warnCommand } from './commands/warn.js';
 import { automodCommand } from './commands/automod.js';
 import { ticketPanelCommand } from './commands/ticketpanel.js';
 import { pollCommand } from './commands/poll.js';
-import { giveawayCommand, handleGiveawayButton } from './commands/giveaway.js';
+import { giveawayCommand } from './commands/giveaway.js';
 import { vcManagerCommand } from './commands/vcmanager.js';
 import { logsCommand } from './commands/logs.js';
+import { handleGiveawayButton, startGiveawayScheduler } from './interactions/giveaways.js';
 import { handleTicketButton } from './interactions/tickets.js';
 import { onVoiceStateUpdate } from './events/voiceStateUpdate.js';
 
@@ -35,6 +36,7 @@ export function createBotClient() {
   client.once('ready', async () => {
     console.log(`Bot online as ${client.user.tag}`);
     await client.application.commands.set(commandList.map((c) => c.data));
+    startGiveawayScheduler(client);
   });
 
   client.on('interactionCreate', async (interaction) => {
