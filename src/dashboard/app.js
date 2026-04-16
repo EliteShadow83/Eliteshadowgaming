@@ -437,6 +437,7 @@ ${adminPanel}
         <a class="btn small" href="/dashboard/${guildId}/automod">Automod Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/logs">Logging Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/vc-manager">VC Manager Setup</a>
+        <a class="btn small" href="/dashboard/${guildId}/giveaway-settings">Giveaway Embed Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/embed">Embed Creator</a>
         <a class="btn small" href="/dashboard/${guildId}/tickets">Ticketing Setup</a>
       </div>
@@ -681,6 +682,26 @@ ${adminPanel}
     `, req.user));
   });
 
+  app.get('/dashboard/:guildId/giveaway-settings', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
+
+    const settings = getGuildSettings(guildId);
+    res.send(renderPage('Giveaway Embed Setup', `
+      <h1>Giveaway Embed Setup</h1>
+      <a class="btn small" href="/dashboard/${guildId}">Back</a>
+      <form class="card form" method="post" action="/api/guilds/${guildId}/giveaway-settings">
+        <label>Embed title<input name="giveaway_embed_title" maxlength="256" value="${escapeHtml(settings.giveaway_embed_title || '🎉 Giveaway')}" /></label>
+        <label>Embed description<textarea name="giveaway_embed_description" rows="6" maxlength="4096">${escapeHtml(settings.giveaway_embed_description || 'Prize: **{prize}**\nWinners: **{winners}**\nEnds: {ends_at}\n\nClick the button below to enter.')}</textarea></label>
+        <label>Embed color<input name="giveaway_embed_color" value="${escapeHtml(settings.giveaway_embed_color || '#F1C40F')}" /></label>
+        <label>Embed footer<input name="giveaway_embed_footer" maxlength="2048" value="${escapeHtml(settings.giveaway_embed_footer || 'Hosted by {host_tag}')}" /></label>
+        <label>Button label<input name="giveaway_button_label" maxlength="80" value="${escapeHtml(settings.giveaway_button_label || 'Enter Giveaway')}" /></label>
+        <button class="btn primary" type="submit">Save Giveaway Embed Settings</button>
+      </form>
+      <p class="muted">Available placeholders: <code>{prize}</code>, <code>{winners}</code>, <code>{ends_at}</code>, <code>{host_tag}</code>.</p>
+    `, req.user));
+  });
+
   app.post('/api/guilds/:guildId/settings', ensureAuth, (req, res) => {
     const { guildId } = req.params;
     if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
@@ -780,6 +801,22 @@ ${adminPanel}
 
     if (wantsJson(req)) return res.json({ ok: true, settings: updated });
     res.redirect(`/dashboard/${guildId}/vc-manager`);
+  });
+
+  app.post('/api/guilds/:guildId/giveaway-settings', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    const updated = updateGuildSettings(guildId, {
+      giveaway_embed_title: (req.body.giveaway_embed_title || '🎉 Giveaway').slice(0, 256),
+      giveaway_embed_description: (req.body.giveaway_embed_description || 'Prize: **{prize}**\nWinners: **{winners}**\nEnds: {ends_at}\n\nClick the button below to enter.').slice(0, 4096),
+      giveaway_embed_color: (req.body.giveaway_embed_color || '#F1C40F').slice(0, 20),
+      giveaway_embed_footer: (req.body.giveaway_embed_footer || 'Hosted by {host_tag}').slice(0, 2048),
+      giveaway_button_label: (req.body.giveaway_button_label || 'Enter Giveaway').slice(0, 80)
+    });
+
+    if (wantsJson(req)) return res.json({ ok: true, settings: updated });
+    res.redirect(`/dashboard/${guildId}/giveaway-settings`);
   });
 
   app.post('/api/guilds/:guildId/embed/send', ensureAuth, async (req, res) => {

@@ -111,7 +111,7 @@ To match enterprise/premium scale you should add:
    - Run `/giveaway` to launch timed button-entry giveaways
    - Run `/vcmanager action:configure` to enable join-to-create temporary voice channels
    - Run `/logs action:configure` to choose a log channel and event types
-   - Use dashboard pages for embeds, ticket settings, logging settings, and VC manager settings
+   - Use dashboard pages for embeds, giveaway embed customization, ticket settings, logging settings, and VC manager settings
 
 10. **Common Windows troubleshooting**
     - If `npm install` fails for native modules, install **Visual Studio Build Tools** and run install again.

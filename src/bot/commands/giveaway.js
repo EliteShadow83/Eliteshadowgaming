@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { createGiveaway, setGiveawayMessageId } from '../../services/giveaways.js';
+import { getGuildSettings } from '../../services/guildSettings.js';
 
 function formatDuration(minutes) {
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
@@ -40,6 +41,9 @@ export const giveawayCommand = {
     }
 
     const endsAt = new Date(Date.now() + durationMinutes * 60 * 1000);
+    const settings = getGuildSettings(interaction.guildId);
+    const endsAtDiscord = `<t:${Math.floor(endsAt.getTime() / 1000)}:R>`;
+
     const giveaway = createGiveaway({
       guildId: interaction.guildId,
       channelId: targetChannel.id,
@@ -49,15 +53,36 @@ export const giveawayCommand = {
       endsAt
     });
 
+    const title = (settings.giveaway_embed_title || '🎉 Giveaway')
+      .replaceAll('{prize}', prize)
+      .replaceAll('{winners}', String(winnerCount))
+      .replaceAll('{ends_at}', endsAtDiscord)
+      .replaceAll('{host_tag}', interaction.user.tag);
+
+    const description = (settings.giveaway_embed_description || 'Prize: **{prize}**\nWinners: **{winners}**\nEnds: {ends_at}\n\nClick the button below to enter.')
+      .replaceAll('{prize}', prize)
+      .replaceAll('{winners}', String(winnerCount))
+      .replaceAll('{ends_at}', endsAtDiscord)
+      .replaceAll('{host_tag}', interaction.user.tag);
+
+    const footer = (settings.giveaway_embed_footer || 'Hosted by {host_tag}')
+      .replaceAll('{prize}', prize)
+      .replaceAll('{winners}', String(winnerCount))
+      .replaceAll('{ends_at}', endsAtDiscord)
+      .replaceAll('{host_tag}', interaction.user.tag);
+
     const embed = new EmbedBuilder()
-      .setColor('#F1C40F')
-      .setTitle('🎉 Giveaway')
-      .setDescription(`Prize: **${prize}**\nWinners: **${winnerCount}**\nEnds: <t:${Math.floor(endsAt.getTime() / 1000)}:R>\n\nClick the button below to enter.`)
-      .setFooter({ text: `Hosted by ${interaction.user.tag}` })
+      .setColor(settings.giveaway_embed_color || '#F1C40F')
+      .setTitle(title.slice(0, 256))
+      .setDescription(description.slice(0, 4096))
+      .setFooter({ text: footer.slice(0, 2048) })
       .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`giveaway_enter:${giveaway.id}`).setLabel('Enter Giveaway').setStyle(ButtonStyle.Success)
+      new ButtonBuilder()
+        .setCustomId(`giveaway_enter:${giveaway.id}`)
+        .setLabel((settings.giveaway_button_label || 'Enter Giveaway').slice(0, 80))
+        .setStyle(ButtonStyle.Success)
     );
 
     const message = await targetChannel.send({ embeds: [embed], components: [row] });
