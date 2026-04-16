@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder } from 'discord.js';
 import { updateTicketSettings } from '../../services/ticketing.js';
 
 export const ticketPanelCommand = {
@@ -23,6 +23,10 @@ export const ticketPanelCommand = {
 
     if (!targetChannel?.isTextBased()) {
       await interaction.reply({ content: 'Please provide a text channel.', ephemeral: true });
+      return;
+    }
+    if (category && category.type !== ChannelType.GuildCategory) {
+      await interaction.reply({ content: 'Category must be a category channel.', ephemeral: true });
       return;
     }
 

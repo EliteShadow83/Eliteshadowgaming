@@ -68,6 +68,7 @@ export async function createTicketChannel({ guild, user }) {
   const category = settings.category_channel_id
     ? await guild.channels.fetch(settings.category_channel_id).catch(() => null)
     : null;
+  const categoryId = category?.type === ChannelType.GuildCategory ? category.id : null;
   const supportRole = settings.support_role_id
     ? await guild.roles.fetch(settings.support_role_id).catch(() => null)
     : null;
@@ -75,7 +76,7 @@ export async function createTicketChannel({ guild, user }) {
   const ticketChannel = await guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
-    parent: category?.id || null,
+    parent: categoryId,
     permissionOverwrites: [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       ...(botMember ? [{ id: botMember.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels] }] : []),
