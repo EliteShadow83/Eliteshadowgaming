@@ -16,8 +16,10 @@ export async function handleTicketButton(interaction) {
   if (!interaction.guild) return;
 
   if (interaction.customId === OPEN_ID || interaction.customId === 'ticket_open') {
+    console.log(`[tickets] request received guild=${interaction.guildId} user=${interaction.user.id}`);
     const existing = getOpenTicketForUser(interaction.guildId, interaction.user.id);
     if (existing) {
+      console.log(`[tickets] request blocked (existing open) guild=${interaction.guildId} user=${interaction.user.id} channel=${existing.channel_id}`);
       await interaction.reply({ content: `You already have an open ticket: <#${existing.channel_id}>`, ephemeral: true });
       return;
     }
@@ -39,8 +41,10 @@ export async function handleTicketButton(interaction) {
         allowedMentions: { roles: settings.support_role_id ? [settings.support_role_id] : [] }
       });
 
+      console.log(`[tickets] created guild=${interaction.guildId} user=${interaction.user.id} channel=${ticketChannel.id}`);
       await interaction.editReply({ content: `✅ Ticket created: ${ticketChannel}` });
     } catch (err) {
+      console.error(`[tickets] create failed guild=${interaction.guildId} user=${interaction.user.id}`, err);
       await interaction.editReply({ content: err.message || 'Unable to create ticket right now.' }).catch(() => null);
     }
 
@@ -93,6 +97,7 @@ export async function handleTicketButton(interaction) {
     await interaction.reply('Closing ticket in 3 seconds...');
 
     closeTicketRecord(interaction.channelId, interaction.user.id);
+    console.log(`[tickets] closing guild=${interaction.guildId} channel=${interaction.channelId} closed_by=${interaction.user.id}`);
     setTimeout(() => {
       interaction.channel.delete('Ticket closed').catch(() => null);
     }, 3000);
