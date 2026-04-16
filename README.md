@@ -104,7 +104,7 @@ To match enterprise/premium scale you should add:
    - Click **Add bot to a server** and authorize
 
 9. **Initialize features in your server**
-   - Run `/ticketpanel` to post the ticket panel (users react with 🎫 to open tickets)
+   - Run `/ticketpanel` to post the ticket open button
    - Use `/config` for toggles (automod/leveling/prefix)
    - Use `/automod action:view` and `/automod action:configure` for advanced automod config
    - Run `/poll` to post quick reaction polls
