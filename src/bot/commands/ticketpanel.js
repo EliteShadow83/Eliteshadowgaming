@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder } from 'discord.js';
 import { updateTicketSettings } from '../../services/ticketing.js';
+import { getTicketButtonIds } from '../interactions/tickets.js';
 
 export const ticketPanelCommand = {
   data: {
@@ -41,9 +42,10 @@ export const ticketPanelCommand = {
       .setTitle('Support Tickets')
       .setDescription('Click **Open Ticket** to create a private support channel with staff.')
       .setColor('#5865F2');
+    const { OPEN_ID } = getTicketButtonIds();
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ticket_open').setLabel('Open Ticket').setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(OPEN_ID).setLabel('Open Ticket').setStyle(ButtonStyle.Primary)
     );
 
     await targetChannel.send({ embeds: [embed], components: [row] });

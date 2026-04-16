@@ -8,45 +8,46 @@ import {
   getTicketSettings
 } from '../../services/ticketing.js';
 
+const OPEN_ID = 'tickets:open';
+const CLAIM_ID = 'tickets:claim';
+const CLOSE_ID = 'tickets:close';
+
 export async function handleTicketButton(interaction) {
   if (!interaction.guild) return;
 
-  if (interaction.customId === 'ticket_open') {
+  if (interaction.customId === OPEN_ID || interaction.customId === 'ticket_open') {
     const existing = getOpenTicketForUser(interaction.guildId, interaction.user.id);
     if (existing) {
       await interaction.reply({ content: `You already have an open ticket: <#${existing.channel_id}>`, ephemeral: true });
       return;
     }
 
+    await interaction.deferReply({ ephemeral: true });
+
     try {
-      await interaction.deferReply({ ephemeral: true });
       const { ticketChannel, settings } = await createTicketChannel({ guild: interaction.guild, user: interaction.user });
+
       const controls = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim Ticket').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(CLAIM_ID).setLabel('Claim Ticket').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(CLOSE_ID).setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
       );
 
       const supportPing = settings.support_role_id ? `<@&${settings.support_role_id}> ` : '';
       await ticketChannel.send({
-        content: `${supportPing}Hello ${interaction.user}, our team will help you here. Use the buttons below to claim/close.`,
+        content: `${supportPing}Hello ${interaction.user}, thanks for opening a ticket. Staff will help you here.`,
         components: [controls],
         allowedMentions: { roles: settings.support_role_id ? [settings.support_role_id] : [] }
       });
 
-      await interaction.editReply({ content: `Ticket created: ${ticketChannel}` });
+      await interaction.editReply({ content: `✅ Ticket created: ${ticketChannel}` });
     } catch (err) {
-      const payload = { content: err.message || 'Unable to create ticket right now.', ephemeral: true };
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply(payload).catch(() => null);
-      } else {
-        await interaction.reply(payload).catch(() => null);
-      }
+      await interaction.editReply({ content: err.message || 'Unable to create ticket right now.' }).catch(() => null);
     }
 
     return;
   }
 
-  if (interaction.customId === 'ticket_claim') {
+  if (interaction.customId === CLAIM_ID || interaction.customId === 'ticket_claim') {
     const ticket = getTicketByChannel(interaction.channelId);
     if (!ticket || ticket.status !== 'open') {
       await interaction.reply({ content: 'This is not an open ticket channel.', ephemeral: true });
@@ -72,7 +73,7 @@ export async function handleTicketButton(interaction) {
     return;
   }
 
-  if (interaction.customId === 'ticket_close') {
+  if (interaction.customId === CLOSE_ID || interaction.customId === 'ticket_close') {
     const ticket = getTicketByChannel(interaction.channelId);
     if (!ticket || ticket.status !== 'open') {
       await interaction.reply({ content: 'This is not an open ticket channel.', ephemeral: true });
@@ -91,10 +92,6 @@ export async function handleTicketButton(interaction) {
 
     await interaction.reply('Closing ticket in 3 seconds...');
 
-    if (settings.transcript_log_channel_id) {
-      await createTranscriptThread({ interaction, ticket, settings }).catch(() => null);
-    }
-
     closeTicketRecord(interaction.channelId, interaction.user.id);
     setTimeout(() => {
       interaction.channel.delete('Ticket closed').catch(() => null);
@@ -102,62 +99,6 @@ export async function handleTicketButton(interaction) {
   }
 }
 
-async function createTranscriptThread({ interaction, ticket, settings }) {
-  const logChannel = await interaction.guild.channels.fetch(settings.transcript_log_channel_id).catch(() => null);
-  if (!logChannel || !logChannel.isTextBased() || !('threads' in logChannel)) return;
-
-  const messages = await collectMessages(interaction.channel);
-  const lines = messages
-    .reverse()
-    .map((msg) => `[${msg.createdAt.toISOString()}] ${msg.author?.tag || msg.author?.id}: ${msg.cleanContent || '[attachment/empty]'}`);
-
-  const thread = await logChannel.threads.create({
-    name: `transcript-${interaction.channel.name}-${Date.now().toString().slice(-5)}`,
-    autoArchiveDuration: 10080,
-    reason: `Transcript for closed ticket ${ticket.id}`
-  });
-
-  await thread.send(`Ticket transcript for <#${interaction.channelId}>\nOwner: <@${ticket.owner_user_id}>\nClosed by: <@${interaction.user.id}>`);
-
-  if (!lines.length) {
-    await thread.send('No messages were captured in this ticket.');
-    return;
-  }
-
-  const chunks = chunkTranscript(lines.join('\n'), 1800);
-  for (const chunk of chunks) {
-    await thread.send(`\`\`\`txt\n${chunk}\n\`\`\``);
-  }
-}
-
-async function collectMessages(channel) {
-  const all = [];
-  let before;
-
-  while (all.length < 500) {
-    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
-    if (!batch || batch.size === 0) break;
-    const values = [...batch.values()];
-    all.push(...values);
-    before = values[values.length - 1].id;
-  }
-
-  return all;
-}
-
-function chunkTranscript(text, maxLength) {
-  const lines = text.split('\n');
-  const chunks = [];
-  let current = '';
-
-  for (const line of lines) {
-    if ((current + line + '\n').length > maxLength) {
-      chunks.push(current.trimEnd());
-      current = '';
-    }
-    current += `${line}\n`;
-  }
-
-  if (current.trim()) chunks.push(current.trimEnd());
-  return chunks;
+export function getTicketButtonIds() {
+  return { OPEN_ID, CLAIM_ID, CLOSE_ID };
 }
