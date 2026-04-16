@@ -1,6 +1,5 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder } from 'discord.js';
+import { ChannelType, EmbedBuilder } from 'discord.js';
 import { updateTicketSettings } from '../../services/ticketing.js';
-import { getTicketButtonIds } from '../interactions/tickets.js';
 
 export const ticketPanelCommand = {
   data: {
@@ -40,15 +39,10 @@ export const ticketPanelCommand = {
 
     const embed = new EmbedBuilder()
       .setTitle('Support Tickets')
-      .setDescription('Click **Open Ticket** to create a private support channel with staff.')
+      .setDescription('React with 🎫 to open a private support ticket.')
       .setColor('#5865F2');
-    const { OPEN_ID } = getTicketButtonIds();
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(OPEN_ID).setLabel('Open Ticket').setStyle(ButtonStyle.Primary)
-    );
-
-    await targetChannel.send({ embeds: [embed], components: [row] });
+    const panelMessage = await targetChannel.send({ embeds: [embed] });
+    await panelMessage.react('🎫').catch(() => null);
     await interaction.reply({ content: `Ticket panel posted in ${targetChannel}.`, ephemeral: true });
   }
 };
