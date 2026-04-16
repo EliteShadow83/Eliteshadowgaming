@@ -77,6 +77,8 @@ export const giveawayCommand = {
       .setDescription(description.slice(0, 4096))
       .setFooter({ text: footer.slice(0, 2048) })
       .setTimestamp();
+    if (settings.giveaway_embed_image_url) embed.setImage(settings.giveaway_embed_image_url);
+    if (settings.giveaway_embed_thumbnail_url) embed.setThumbnail(settings.giveaway_embed_thumbnail_url);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()

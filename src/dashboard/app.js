@@ -695,6 +695,8 @@ ${adminPanel}
         <label>Embed description<textarea name="giveaway_embed_description" rows="6" maxlength="4096">${escapeHtml(settings.giveaway_embed_description || 'Prize: **{prize}**\nWinners: **{winners}**\nEnds: {ends_at}\n\nClick the button below to enter.')}</textarea></label>
         <label>Embed color<input name="giveaway_embed_color" value="${escapeHtml(settings.giveaway_embed_color || '#F1C40F')}" /></label>
         <label>Embed footer<input name="giveaway_embed_footer" maxlength="2048" value="${escapeHtml(settings.giveaway_embed_footer || 'Hosted by {host_tag}')}" /></label>
+        <label>Embed image URL<input name="giveaway_embed_image_url" type="url" value="${escapeHtml(settings.giveaway_embed_image_url || '')}" /></label>
+        <label>Embed thumbnail URL<input name="giveaway_embed_thumbnail_url" type="url" value="${escapeHtml(settings.giveaway_embed_thumbnail_url || '')}" /></label>
         <label>Button label<input name="giveaway_button_label" maxlength="80" value="${escapeHtml(settings.giveaway_button_label || 'Enter Giveaway')}" /></label>
         <button class="btn primary" type="submit">Save Giveaway Embed Settings</button>
       </form>
@@ -812,6 +814,8 @@ ${adminPanel}
       giveaway_embed_description: (req.body.giveaway_embed_description || 'Prize: **{prize}**\nWinners: **{winners}**\nEnds: {ends_at}\n\nClick the button below to enter.').slice(0, 4096),
       giveaway_embed_color: (req.body.giveaway_embed_color || '#F1C40F').slice(0, 20),
       giveaway_embed_footer: (req.body.giveaway_embed_footer || 'Hosted by {host_tag}').slice(0, 2048),
+      giveaway_embed_image_url: req.body.giveaway_embed_image_url || null,
+      giveaway_embed_thumbnail_url: req.body.giveaway_embed_thumbnail_url || null,
       giveaway_button_label: (req.body.giveaway_button_label || 'Enter Giveaway').slice(0, 80)
     });
 

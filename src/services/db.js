@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   giveaway_embed_description TEXT DEFAULT 'Prize: **{prize}**\nWinners: **{winners}**\nEnds: {ends_at}\n\nClick the button below to enter.',
   giveaway_embed_color TEXT DEFAULT '#F1C40F',
   giveaway_embed_footer TEXT DEFAULT 'Hosted by {host_tag}',
+  giveaway_embed_image_url TEXT,
+  giveaway_embed_thumbnail_url TEXT,
   giveaway_button_label TEXT DEFAULT 'Enter Giveaway',
   automod_enabled INTEGER DEFAULT 1,
   block_links INTEGER DEFAULT 0,
