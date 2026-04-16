@@ -19,6 +19,7 @@ export async function handleTicketButton(interaction) {
     }
 
     try {
+      await interaction.deferReply({ ephemeral: true });
       const { ticketChannel, settings } = await createTicketChannel({ guild: interaction.guild, user: interaction.user });
       const controls = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim Ticket').setStyle(ButtonStyle.Secondary),
@@ -32,9 +33,14 @@ export async function handleTicketButton(interaction) {
         allowedMentions: { roles: settings.support_role_id ? [settings.support_role_id] : [] }
       });
 
-      await interaction.reply({ content: `Ticket created: ${ticketChannel}`, ephemeral: true });
+      await interaction.editReply({ content: `Ticket created: ${ticketChannel}` });
     } catch (err) {
-      await interaction.reply({ content: err.message || 'Unable to create ticket right now.', ephemeral: true });
+      const payload = { content: err.message || 'Unable to create ticket right now.', ephemeral: true };
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(payload).catch(() => null);
+      } else {
+        await interaction.reply(payload).catch(() => null);
+      }
     }
 
     return;
