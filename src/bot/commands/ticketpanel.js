@@ -1,5 +1,6 @@
-import { ChannelType, EmbedBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder } from 'discord.js';
 import { updateTicketSettings } from '../../services/ticketing.js';
+import { getTicketButtonIds } from '../interactions/tickets.js';
 
 export const ticketPanelCommand = {
   data: {
@@ -13,7 +14,7 @@ export const ticketPanelCommand = {
   },
   async execute(interaction) {
     if (!interaction.memberPermissions?.has('ManageGuild')) {
-      await interaction.reply({ content: 'You need Manage Server permission.', ephemeral: true });
+      await interaction.reply({ content: 'You need Manage Server permission.', flags: 64 });
       return;
     }
 
@@ -22,11 +23,11 @@ export const ticketPanelCommand = {
     const category = interaction.options.getChannel('category');
 
     if (!targetChannel?.isTextBased()) {
-      await interaction.reply({ content: 'Please provide a text channel.', ephemeral: true });
+      await interaction.reply({ content: 'Please provide a text channel.', flags: 64 });
       return;
     }
     if (category && category.type !== ChannelType.GuildCategory) {
-      await interaction.reply({ content: 'Category must be a category channel.', ephemeral: true });
+      await interaction.reply({ content: 'Category must be a category channel.', flags: 64 });
       return;
     }
 
@@ -39,10 +40,13 @@ export const ticketPanelCommand = {
 
     const embed = new EmbedBuilder()
       .setTitle('Support Tickets')
-      .setDescription('React with 🎫 to open a private support ticket.')
+      .setDescription('Click **Open Ticket** to create a private support channel with staff.')
       .setColor('#5865F2');
-    const panelMessage = await targetChannel.send({ embeds: [embed] });
-    await panelMessage.react('🎫').catch(() => null);
-    await interaction.reply({ content: `Ticket panel posted in ${targetChannel}.`, ephemeral: true });
+    const { OPEN_ID } = getTicketButtonIds();
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(OPEN_ID).setLabel('Open Ticket').setStyle(ButtonStyle.Primary)
+    );
+    await targetChannel.send({ embeds: [embed], components: [row] });
+    await interaction.reply({ content: `Ticket panel posted in ${targetChannel}.`, flags: 64 });
   }
 };

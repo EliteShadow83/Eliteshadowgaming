@@ -4,7 +4,6 @@ import { onGuildMemberAdd } from './events/guildMemberAdd.js';
 import { onGuildMemberRemove } from './events/guildMemberRemove.js';
 import { onMessageDelete } from './events/messageDelete.js';
 import { onMessageUpdate } from './events/messageUpdate.js';
-import { onMessageReactionAdd } from './events/messageReactionAdd.js';
 import { pingCommand } from './commands/ping.js';
 import { configCommand } from './commands/config.js';
 import { warnCommand } from './commands/warn.js';
@@ -25,12 +24,11 @@ export function createBotClient() {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.GuildMessageReactions,
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.MessageContent
     ],
-    partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User]
+    partials: [Partials.Channel]
   });
 
   client.commands = new Collection(commandList.map((cmd) => [cmd.data.name, cmd]));
@@ -46,8 +44,7 @@ export function createBotClient() {
       const wasGiveawayButton = handleGiveawayButton(interaction);
       if (wasGiveawayButton) return;
 
-      const wasTicketButton = await handleTicketButton(interaction);
-      if (wasTicketButton) return;
+      await handleTicketButton(interaction);
       return;
     }
 
@@ -73,7 +70,6 @@ export function createBotClient() {
   client.on('guildMemberRemove', onGuildMemberRemove);
   client.on('messageDelete', onMessageDelete);
   client.on('messageUpdate', onMessageUpdate);
-  client.on('messageReactionAdd', onMessageReactionAdd);
   client.on('voiceStateUpdate', onVoiceStateUpdate);
 
   return client;

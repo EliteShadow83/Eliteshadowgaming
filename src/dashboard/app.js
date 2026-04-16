@@ -600,7 +600,7 @@ ${adminPanel}
         <label class="inline"><input type="checkbox" name="opener_can_close" ${settings.opener_can_close ? 'checked' : ''}/> Allow ticket opener to close</label>
         <button class="btn primary" type="submit">Save Ticket Settings</button>
       </form>
-      <p class="muted">After saving, run <code>/ticketpanel</code> to publish the ticket panel (users react with 🎫 to open a ticket).</p>
+      <p class="muted">After saving, run <code>/ticketpanel</code> to publish the open-ticket button.</p>
     `, req.user));
   });
 
