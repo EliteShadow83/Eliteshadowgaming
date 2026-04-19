@@ -426,6 +426,16 @@ ${adminPanel}
     if (!userCanManageGuild(req.user, guildId)) return forbidden(res);
 
     const settings = getGuildSettings(guildId);
+    const ticketSettings = getTicketSettings(guildId);
+    const vcSettings = getVcManagerSettings(guildId);
+    const disabledModules = [
+      !settings.automod_enabled && 'Automod',
+      !settings.leveling_enabled && 'Leveling',
+      !ticketSettings.enabled && 'Ticketing',
+      !settings.logging_enabled && 'Logging',
+      !vcSettings.enabled && 'VC Manager'
+    ].filter(Boolean);
+
     const allBots = getBotVariants();
     const allowedBots = isAdminUnlocked(req)
       ? allBots
@@ -442,6 +452,13 @@ ${adminPanel}
         <div class="actions"><button class="btn" type="submit">Switch Bot Context</button><a class="btn" href="/dashboard/invite/${guildId}?bot=${selectedBotSlug}">Invite Additional Bot</a></div>
       </form>
       <p class="muted">License (${selectedBotSlug}): ${license ? `${license.plan} (${license.status})` : "No active license"}</p>
+      ${disabledModules.length ? `
+        <div class="card" style="border-color:#f59e0b;">
+          <h3>⚠️ Main Modules Disabled</h3>
+          <p class="muted">The following main modules are currently disabled: <strong>${disabledModules.join(', ')}</strong>.</p>
+          <p class="muted">Enable them in this dashboard to ensure all expected bot features are active.</p>
+        </div>
+      ` : ''}
       <div class="tabs">
         <a class="btn small" href="/dashboard/${guildId}/automod">Automod Setup</a>
         <a class="btn small" href="/dashboard/${guildId}/logs">Logging Setup</a>
@@ -459,7 +476,7 @@ ${adminPanel}
 
       <div class="card">
         <h3>Level Milestone Role Rewards</h3>
-        <p class="muted">Automatically grant roles when members hit milestone levels. Custom message placeholders: <code>{user}</code>, <code>{role}</code>, <code>{level}</code>.</p>
+        <p class="muted">Automatically grant roles when members hit milestone levels. Custom message placeholders: <code>{user}</code>, <code>{role}</code>, <code>{level}</code>. Using <code>{role}</code> will ping that role.</p>
         <ul>
           ${listLevelRoleRewards(guildId).map((reward) => `<li>Level <strong>${reward.level}</strong> → <code>${escapeHtml(reward.role_id)}</code>${reward.reward_message ? ` — ${escapeHtml(reward.reward_message)}` : ''}</li>`).join('') || '<li class="muted">No milestone rewards configured yet.</li>'}
         </ul>

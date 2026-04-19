@@ -4,7 +4,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 
 - Moderation commands (`/warn`)
 - Auto moderation (custom blocked words, links/invite filter, mention limit, and tempmute on repeated removals)
-- XP + leveling engine with milestone role rewards + custom reward messages
+- XP + leveling engine with milestone role rewards + custom reward messages (using `{role}` in reward messages will ping that role)
 - Welcome messages
 - Per-guild settings storage
 - Configurable per-server logging (choose channel + toggle event categories)
