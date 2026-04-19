@@ -178,6 +178,18 @@ CREATE TABLE IF NOT EXISTS tickets (
   closed_at TEXT
 );
 
+
+CREATE TABLE IF NOT EXISTS level_role_rewards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  level INTEGER NOT NULL,
+  role_id TEXT NOT NULL,
+  reward_message TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(guild_id, level)
+);
+
 CREATE TABLE IF NOT EXISTS giveaways (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,

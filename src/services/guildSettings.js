@@ -197,15 +197,44 @@ export function incrementXP(guildId, userId, amount = 15) {
   const existing = db.prepare('SELECT * FROM leveling WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
   if (!existing) {
     db.prepare('INSERT INTO leveling (guild_id, user_id, xp, level) VALUES (?, ?, ?, ?)').run(guildId, userId, amount, 1);
-    return { levelUp: false, level: 1, xp: amount };
+    return { levelUp: false, level: 1, xp: amount, previousLevel: 1 };
   }
   const xp = existing.xp + amount;
   const nextLevel = Math.floor(0.1 * Math.sqrt(xp)) + 1;
   const levelUp = nextLevel > existing.level;
   db.prepare('UPDATE leveling SET xp = ?, level = ? WHERE guild_id = ? AND user_id = ?').run(xp, nextLevel, guildId, userId);
-  return { levelUp, level: nextLevel, xp };
+  return { levelUp, level: nextLevel, xp, previousLevel: existing.level };
 }
 
 export function getLeaderboard(guildId, limit = 10) {
   return db.prepare('SELECT * FROM leveling WHERE guild_id = ? ORDER BY xp DESC LIMIT ?').all(guildId, limit);
+}
+
+
+export function listLevelRoleRewards(guildId) {
+  return db.prepare('SELECT * FROM level_role_rewards WHERE guild_id = ? ORDER BY level ASC').all(guildId);
+}
+
+export function upsertLevelRoleReward(guildId, { level, roleId, rewardMessage = null }) {
+  const normalizedLevel = Math.max(1, Number(level || 1));
+  const normalizedRoleId = String(roleId || '').trim();
+  if (!normalizedRoleId) throw new Error('role_id is required');
+
+  db.prepare(`INSERT INTO level_role_rewards (guild_id, level, role_id, reward_message)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(guild_id, level)
+    DO UPDATE SET role_id = excluded.role_id, reward_message = excluded.reward_message, updated_at = CURRENT_TIMESTAMP`)
+    .run(guildId, normalizedLevel, normalizedRoleId, rewardMessage || null);
+
+  return listLevelRoleRewards(guildId);
+}
+
+export function removeLevelRoleReward(guildId, level) {
+  db.prepare('DELETE FROM level_role_rewards WHERE guild_id = ? AND level = ?').run(guildId, Math.max(1, Number(level || 1)));
+  return listLevelRoleRewards(guildId);
+}
+
+export function listLevelRoleRewardsInRange(guildId, minLevel, maxLevel) {
+  return db.prepare('SELECT * FROM level_role_rewards WHERE guild_id = ? AND level > ? AND level <= ? ORDER BY level ASC')
+    .all(guildId, Number(minLevel || 0), Number(maxLevel || 0));
 }

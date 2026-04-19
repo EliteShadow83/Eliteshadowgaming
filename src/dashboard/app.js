@@ -3,7 +3,16 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as DiscordStrategy } from 'passport-discord';
 import { EmbedBuilder } from 'discord.js';
-import { addAutomodTerm, getGuildSettings, listAutomodTerms, removeAutomodTerm, updateGuildSettings } from '../services/guildSettings.js';
+import {
+  addAutomodTerm,
+  getGuildSettings,
+  listAutomodTerms,
+  listLevelRoleRewards,
+  removeAutomodTerm,
+  removeLevelRoleReward,
+  updateGuildSettings,
+  upsertLevelRoleReward
+} from '../services/guildSettings.js';
 import { getTicketSettings, updateTicketSettings } from '../services/ticketing.js';
 import { getVcManagerSettings, updateVcManagerSettings } from '../services/vcManager.js';
 import db from '../services/db.js';
@@ -52,7 +61,7 @@ export function createDashboard({ client, botRuntime }) {
   app.post('/dashboard/admin/unlock', ensureAuth, (req, res) => {
     const returnTo = req.body.returnTo || '/dashboard';
     if (!process.env.DASHBOARD_ADMIN_SECRET || req.body.adminSecret !== process.env.DASHBOARD_ADMIN_SECRET) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Invalid admin secret.', returnTo));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Invalid developer secret.', returnTo));
     }
 
     req.session.adminUnlocked = true;
@@ -132,7 +141,7 @@ ${adminPanel}
 
       <div class="card">
         <h3>Recent Keys</h3>
-        ${canViewSecrets ? `<ul>${recentKeys || '<li>No keys yet</li>'}</ul>` : '<p class="muted">Unlock admin access to view recent keys.</p>'}
+        ${canViewSecrets ? `<ul>${recentKeys || '<li>No keys yet</li>'}</ul>` : '<p class="muted">Unlock developer access to view recent keys.</p>'}
       </div>
     `, req.user));
   });
@@ -150,7 +159,7 @@ ${adminPanel}
 
   app.post('/dashboard/licenses/create', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required.', '/dashboard/licenses'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required.', '/dashboard/licenses'));
     }
 
     const created = createManualLicenseKey({
@@ -180,7 +189,7 @@ ${adminPanel}
 
   app.get('/dashboard/bots', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for bot manager.', '/dashboard/bots'));
     }
 
     const bots = getBotVariants();
@@ -208,7 +217,7 @@ ${adminPanel}
 
     res.send(renderPage('Bot Manager', `
       <h1>Bot Manager</h1>
-      <p class=\"muted\">Admin can add/edit bots and their default presence settings.</p>
+      <p class=\"muted\">Developer access can add/edit bots and their default presence settings.</p>
       <form class=\"card form\" method=\"post\" action=\"/dashboard/bots/create\">
         <h3>Add Bot</h3>
         <label>Slug<input name=\"slug\" required /></label>
@@ -228,7 +237,7 @@ ${adminPanel}
 
   app.post('/dashboard/bots/create', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for bot manager.', '/dashboard/bots'));
     }
 
     createBotVariant(req.body);
@@ -237,7 +246,7 @@ ${adminPanel}
 
   app.post('/dashboard/bots/:slug', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for bot manager.', '/dashboard/bots'));
     }
 
     updateBotVariant(req.params.slug, req.body);
@@ -246,7 +255,7 @@ ${adminPanel}
 
   app.post('/dashboard/bots/:slug/start', ensureAuth, async (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for bot manager.', '/dashboard/bots'));
     }
 
     try {
@@ -260,7 +269,7 @@ ${adminPanel}
 
   app.post('/dashboard/bots/:slug/stop', ensureAuth, async (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for bot manager.', '/dashboard/bots'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for bot manager.', '/dashboard/bots'));
     }
 
     try {
@@ -290,7 +299,7 @@ ${adminPanel}
 
   app.get('/dashboard/database', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for database manager.', '/dashboard/database'));
     }
     const tables = listTables();
     const selectedTable = sanitizeIdentifier(req.query.table) && tables.includes(req.query.table) ? req.query.table : tables[0];
@@ -354,7 +363,7 @@ ${adminPanel}
 
   app.post('/dashboard/database/upsert', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for database manager.', '/dashboard/database'));
     }
     const table = sanitizeIdentifier(req.body.table);
     const pkColumn = sanitizeIdentifier(req.body.pkColumn);
@@ -388,7 +397,7 @@ ${adminPanel}
 
   app.post('/dashboard/database/delete', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for database manager.', '/dashboard/database'));
     }
     const table = sanitizeIdentifier(req.body.table);
     const pkColumn = sanitizeIdentifier(req.body.pkColumn);
@@ -401,7 +410,7 @@ ${adminPanel}
 
   app.post('/dashboard/database/drop-table', ensureAuth, (req, res) => {
     if (!isAdminUnlocked(req)) {
-      return res.status(403).send(renderAdminUnlockPage(req.user, 'Admin unlock required for database manager.', '/dashboard/database'));
+      return res.status(403).send(renderAdminUnlockPage(req.user, 'Developer unlock required for database manager.', '/dashboard/database'));
     }
 
     const table = sanitizeIdentifier(req.body.table);
@@ -447,6 +456,24 @@ ${adminPanel}
         <label class="inline"><input type="checkbox" name="leveling_enabled" ${settings.leveling_enabled ? 'checked' : ''}/> Enable leveling</label>
         <button class="btn primary" type="submit">Save Settings</button>
       </form>
+
+      <div class="card">
+        <h3>Level Milestone Role Rewards</h3>
+        <p class="muted">Automatically grant roles when members hit milestone levels. Custom message placeholders: <code>{user}</code>, <code>{role}</code>, <code>{level}</code>.</p>
+        <ul>
+          ${listLevelRoleRewards(guildId).map((reward) => `<li>Level <strong>${reward.level}</strong> → <code>${escapeHtml(reward.role_id)}</code>${reward.reward_message ? ` — ${escapeHtml(reward.reward_message)}` : ''}</li>`).join('') || '<li class="muted">No milestone rewards configured yet.</li>'}
+        </ul>
+        <form class="form" method="post" action="/api/guilds/${guildId}/level-rewards/add">
+          <label>Level milestone<input type="number" min="1" name="level" required /></label>
+          <label>Role ID<input name="role_id" required /></label>
+          <label>Custom message (optional)<input name="reward_message" maxlength="500" placeholder="🏆 {user} reached level {level} and unlocked {role}!" /></label>
+          <button class="btn" type="submit">Save Milestone Reward</button>
+        </form>
+        <form class="form" method="post" action="/api/guilds/${guildId}/level-rewards/remove">
+          <label>Level milestone to remove<input type="number" min="1" name="level" required /></label>
+          <button class="btn" type="submit">Remove Milestone Reward</button>
+        </form>
+      </div>
 
       <form class="card form" method="post" action="/api/guilds/${guildId}/bot-presence">
         <input type="hidden" name="botSlug" value="${selectedBotSlug}" />
@@ -532,6 +559,8 @@ ${adminPanel}
           <label>Footer<input name="footer" maxlength="2048" /></label>
           <label>Image URL<input name="imageUrl" type="url" /></label>
           <label>Thumbnail URL<input name="thumbnailUrl" type="url" /></label>
+          <label class="inline"><input type="checkbox" name="save_template"/> Save as template</label>
+          <label>Template name (if saving)<input name="template_name" maxlength="80" placeholder="Weekly Announcement" /></label>
           <button class="btn primary" type="submit">Send Embed</button>
         </form>
 
@@ -544,6 +573,16 @@ ${adminPanel}
             <div id="previewFooter" class="muted" style="margin-top:10px;font-size:.85rem;"></div>
           </div>
         </div>
+      </div>
+
+
+      <div class="card">
+        <h3>Saved Embed Templates</h3>
+        <ul>
+          ${db.prepare('SELECT name, title, color, created_at FROM embed_templates WHERE guild_id = ? ORDER BY created_at DESC LIMIT 20').all(guildId)
+            .map((tpl) => `<li><strong>${escapeHtml(tpl.name)}</strong>${tpl.title ? ` — ${escapeHtml(tpl.title)}` : ''}${tpl.color ? ` <span class="muted">(${escapeHtml(tpl.color)})</span>` : ''}</li>`)
+            .join('') || '<li class="muted">No templates saved yet.</li>'}
+        </ul>
       </div>
 
       <script>
@@ -755,6 +794,34 @@ ${adminPanel}
     res.redirect(`/dashboard/${guildId}/automod`);
   });
 
+
+  app.post('/api/guilds/:guildId/level-rewards/add', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    try {
+      const rewards = upsertLevelRoleReward(guildId, {
+        level: Math.max(1, Number(req.body.level || 1)),
+        roleId: (req.body.role_id || '').trim(),
+        rewardMessage: (req.body.reward_message || '').trim() || null
+      });
+      if (wantsJson(req)) return res.json({ ok: true, rewards });
+      return res.redirect(`/dashboard/${guildId}`);
+    } catch (err) {
+      if (wantsJson(req)) return res.status(400).json({ ok: false, error: err.message });
+      return res.status(400).send(renderPage('Invalid Level Reward', `<p>${escapeHtml(err.message)}</p><p><a class="btn" href="/dashboard/${guildId}">Back</a></p>`, req.user));
+    }
+  });
+
+  app.post('/api/guilds/:guildId/level-rewards/remove', ensureAuth, (req, res) => {
+    const { guildId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    const rewards = removeLevelRoleReward(guildId, Number(req.body.level || 1));
+    if (wantsJson(req)) return res.json({ ok: true, rewards });
+    res.redirect(`/dashboard/${guildId}`);
+  });
+
   app.post('/api/guilds/:guildId/tickets', ensureAuth, (req, res) => {
     const { guildId } = req.params;
     if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
@@ -843,6 +910,21 @@ ${adminPanel}
 
     await channel.send({ embeds: [embed] });
 
+    if (Boolean(req.body.save_template) && req.body.template_name) {
+      db.prepare(`INSERT INTO embed_templates (guild_id, name, title, description, color, footer, image_url, thumbnail_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(
+          guildId,
+          String(req.body.template_name).slice(0, 80),
+          req.body.title ? String(req.body.title).slice(0, 256) : null,
+          req.body.description ? String(req.body.description).slice(0, 4096) : null,
+          req.body.color ? String(req.body.color).slice(0, 20) : '#5865F2',
+          req.body.footer ? String(req.body.footer).slice(0, 2048) : null,
+          req.body.imageUrl ? String(req.body.imageUrl).slice(0, 2048) : null,
+          req.body.thumbnailUrl ? String(req.body.thumbnailUrl).slice(0, 2048) : null
+        );
+    }
+
     if (wantsJson(req)) return res.json({ ok: true });
     res.redirect(`/dashboard/${guildId}/embed`);
   });
@@ -885,22 +967,22 @@ function isAdminUnlocked(req) {
   return Boolean(req.session?.adminUnlocked);
 }
 
-function renderAdminUnlockCard(returnTo, note = 'Admin secret required.') {
+function renderAdminUnlockCard(returnTo, note = 'Developer secret required.') {
   return `
     <div class="card">
-      <h3>Admin Unlock</h3>
+      <h3>Developer Unlock</h3>
       <p class="muted">${note}</p>
       <form class="form" method="post" action="/dashboard/admin/unlock">
         <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
-        <label>Admin secret<input name="adminSecret" type="password" required /></label>
+        <label>Developer secret<input name="adminSecret" type="password" required /></label>
         <button class="btn" type="submit">Unlock</button>
       </form>
     </div>`;
 }
 
 function renderAdminUnlockPage(user, message, returnTo) {
-  return renderPage('Admin Unlock Required', `
-    <h1>Admin Unlock Required</h1>
+  return renderPage('Developer Unlock Required', `
+    <h1>Developer Unlock Required</h1>
     ${renderAdminUnlockCard(returnTo, message)}
   `, user);
 }

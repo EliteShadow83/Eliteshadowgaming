@@ -4,7 +4,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 
 - Moderation commands (`/warn`)
 - Auto moderation (custom blocked words, links/invite filter, mention limit, and tempmute on repeated removals)
-- XP + leveling engine
+- XP + leveling engine with milestone role rewards + custom reward messages
 - Welcome messages
 - Per-guild settings storage
 - Configurable per-server logging (choose channel + toggle event categories)
@@ -17,7 +17,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 - License-key paywall for bot invites + manual key creation (configurable server-count per key)
 - License keys are tied to a specific bot variant; redeeming auto-selects the tied bot
 - Database manager in dashboard (browse/edit SQLite tables + debug table drop)
-- Admin secret unlock required for DB manager and viewing recent license keys
+- Developer secret unlock required for DB manager and viewing recent license keys
 - Embed creator in dashboard (build + send rich embeds with live preview)
 - Ticketing system (support role ping/access, claim tickets, opener-close toggle, and transcript threads in transcript channel)
 - Optional temporary VC manager (auto-create channels from a join-to-create lobby and auto-delete when empty)

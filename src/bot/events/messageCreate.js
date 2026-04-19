@@ -3,12 +3,21 @@ import {
   getGuildSettings,
   incrementXP,
   listAutomodTerms,
+  listLevelRoleRewardsInRange,
   recordAutomodRemoval
 } from '../../services/guildSettings.js';
 import { sendGuildLog } from '../../services/logger.js';
 
 const inviteRegex = /(discord\.gg|discord\.com\/invite)\/[a-zA-Z0-9-]+/i;
 const linkRegex = /(https?:\/\/|www\.)\S+/i;
+
+function buildLevelRewardMessage(template, { userMention, roleMention, level }) {
+  if (!template) return `🏅 ${userMention} reached level **${level}** and received ${roleMention}!`;
+  return template
+    .replaceAll('{user}', userMention)
+    .replaceAll('{role}', roleMention)
+    .replaceAll('{level}', String(level));
+}
 
 export async function onMessageCreate(message) {
   if (!message.guild || message.author.bot) return;
@@ -64,6 +73,20 @@ export async function onMessageCreate(message) {
     const result = incrementXP(message.guild.id, message.author.id);
     if (result.levelUp) {
       await message.channel.send(`🎉 ${message.author} leveled up to **${result.level}**!`);
+
+      const milestones = listLevelRoleRewardsInRange(message.guild.id, result.previousLevel, result.level);
+      for (const reward of milestones) {
+        const role = await message.guild.roles.fetch(reward.role_id).catch(() => null);
+        if (!role || !message.member || message.member.roles.cache.has(role.id)) continue;
+
+        await message.member.roles.add(role, `Level milestone reward: ${reward.level}`).catch(() => null);
+        const rewardMessage = buildLevelRewardMessage(reward.reward_message, {
+          userMention: `${message.author}`,
+          roleMention: `<@&${role.id}>`,
+          level: reward.level
+        });
+        await message.channel.send(rewardMessage).catch(() => null);
+      }
     }
   }
 }
