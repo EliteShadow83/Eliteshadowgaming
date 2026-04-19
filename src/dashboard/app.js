@@ -547,11 +547,23 @@ ${adminPanel}
       .map((channel) => `<option value="${channel.id}">#${escapeHtml(channel.name)}</option>`)
       .join('');
 
+    const templates = db.prepare('SELECT id, name, title, description, color, footer, image_url, thumbnail_url, created_at FROM embed_templates WHERE guild_id = ? ORDER BY created_at DESC LIMIT 50').all(guildId);
+    const templateOptions = templates.map((tpl) => `<option value="${tpl.id}">${escapeHtml(tpl.name)}</option>`).join('');
+    const templateSeed = JSON.stringify(templates).replaceAll('<', '\u003c');
+
     res.send(renderPage('Embed Creator', `
       <h1>Embed Creator</h1>
       <a class="btn small" href="/dashboard/${guildId}">Back</a>
       <div class="grid two">
         <form id="embedForm" class="card form" method="post" action="/api/guilds/${guildId}/embed/send">
+          <label>Load saved template
+            <select id="templateSelect" name="template_id">
+              <option value="">-- Select template --</option>
+              ${templateOptions}
+            </select>
+          </label>
+          <button class="btn" type="button" id="loadTemplateBtn">Populate from Template</button>
+
           <label>Target channel<select name="channelId" required>${options}</select></label>
           <label>Title<input name="title" maxlength="256" /></label>
           <label>Description<textarea name="description" rows="6" maxlength="4096"></textarea></label>
@@ -575,24 +587,33 @@ ${adminPanel}
         </div>
       </div>
 
-
       <div class="card">
         <h3>Saved Embed Templates</h3>
         <ul>
-          ${db.prepare('SELECT name, title, color, created_at FROM embed_templates WHERE guild_id = ? ORDER BY created_at DESC LIMIT 20').all(guildId)
-            .map((tpl) => `<li><strong>${escapeHtml(tpl.name)}</strong>${tpl.title ? ` — ${escapeHtml(tpl.title)}` : ''}${tpl.color ? ` <span class="muted">(${escapeHtml(tpl.color)})</span>` : ''}</li>`)
+          ${templates
+            .map((tpl) => `
+              <li>
+                <strong>${escapeHtml(tpl.name)}</strong>${tpl.title ? ` — ${escapeHtml(tpl.title)}` : ''}${tpl.color ? ` <span class="muted">(${escapeHtml(tpl.color)})</span>` : ''}
+                <form method="post" action="/api/guilds/${guildId}/embed/templates/${tpl.id}/delete" style="display:inline; margin-left:8px;">
+                  <button class="btn small" type="submit">Remove</button>
+                </form>
+              </li>`)
             .join('') || '<li class="muted">No templates saved yet.</li>'}
         </ul>
       </div>
 
       <script>
         (function () {
+          const templates = ${templateSeed};
           const form = document.getElementById('embedForm');
+          const templateSelect = document.getElementById('templateSelect');
+          const loadTemplateBtn = document.getElementById('loadTemplateBtn');
           const title = form.querySelector('input[name="title"]');
           const desc = form.querySelector('textarea[name="description"]');
           const color = form.querySelector('input[name="color"]');
           const footer = form.querySelector('input[name="footer"]');
           const image = form.querySelector('input[name="imageUrl"]');
+          const thumbnail = form.querySelector('input[name="thumbnailUrl"]');
 
           const titleOut = document.getElementById('previewTitle');
           const descOut = document.getElementById('previewDescription');
@@ -616,6 +637,22 @@ ${adminPanel}
             }
           }
 
+          function applyTemplate() {
+            const selectedId = Number(templateSelect.value);
+            if (!selectedId) return;
+            const template = templates.find((tpl) => Number(tpl.id) === selectedId);
+            if (!template) return;
+            title.value = template.title || '';
+            desc.value = template.description || '';
+            color.value = template.color || '#5865F2';
+            footer.value = template.footer || '';
+            image.value = template.image_url || '';
+            thumbnail.value = template.thumbnail_url || '';
+            render();
+          }
+
+          loadTemplateBtn.addEventListener('click', applyTemplate);
+          templateSelect.addEventListener('change', applyTemplate);
           [title, desc, color, footer, image].forEach((el) => el.addEventListener('input', render));
           render();
         })();
@@ -924,6 +961,17 @@ ${adminPanel}
           req.body.thumbnailUrl ? String(req.body.thumbnailUrl).slice(0, 2048) : null
         );
     }
+
+    if (wantsJson(req)) return res.json({ ok: true });
+    res.redirect(`/dashboard/${guildId}/embed`);
+  });
+
+
+  app.post('/api/guilds/:guildId/embed/templates/:templateId/delete', ensureAuth, (req, res) => {
+    const { guildId, templateId } = req.params;
+    if (!userCanManageGuild(req.user, guildId)) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+    db.prepare('DELETE FROM embed_templates WHERE id = ? AND guild_id = ?').run(Number(templateId), guildId);
 
     if (wantsJson(req)) return res.json({ ok: true });
     res.redirect(`/dashboard/${guildId}/embed`);
