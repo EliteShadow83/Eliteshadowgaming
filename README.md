@@ -40,6 +40,7 @@ This project gives you a **multi-server Discord bot** with the same categories o
 
 Dashboard runs on `http://localhost:3000` by default.
 
+
 ## Architecture
 
 - `src/bot/*` — Discord client, slash commands, and event handlers.

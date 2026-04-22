@@ -69,6 +69,8 @@ export async function onMessageCreate(message) {
     }
   }
 
+
+
   if (settings.leveling_enabled) {
     const result = incrementXP(message.guild.id, message.author.id);
     if (result.levelUp) {
